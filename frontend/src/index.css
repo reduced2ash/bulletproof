@@ -1,0 +1,282 @@
+:root {
+  /* Amber / Black palette */
+  --bg: #0b0b0c;         /* near-black */
+  --card: #111214;       /* black card */
+  --text: #f8fafc;       /* near-white */
+  --muted: #9ca3af;      /* slate */
+  --primary: #f59e0b;    /* amber */
+  --primary-2: #f59e0b;  /* amber (single hue) */
+  --accent: #0f172a;     /* dark slate */
+  --ring: rgba(245, 158, 11, 0.35);
+}
+
+* { box-sizing: border-box; }
+*::before, *::after { box-sizing: inherit; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: radial-gradient(1200px 600px at 20% 10%, #101113 0%, var(--bg) 70%);
+  color: var(--text);
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  overflow-y: auto; /* enable vertical scrolling */
+  overscroll-behavior: contain;
+}
+
+.container {
+  width: 420px;
+  height: 100%;
+  max-height: 100vh;
+  background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)), var(--card);
+  backdrop-filter: blur(6px);
+  border-radius: 22px;
+  border: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 16px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  overflow-y: auto; /* allow content to scroll */
+}
+
+.app-header {
+  width: 100%;
+  text-align: center;
+  padding: 18px 18px 12px 18px; /* add a bit more top padding */
+  box-sizing: border-box;
+  background: linear-gradient(90deg, color-mix(in oklab, var(--primary) 22%, transparent), color-mix(in oklab, #000 12%, transparent));
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+
+.app-header h1 {
+  font-size: 1.6rem;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  font-weight: 700;
+  margin: 0;
+}
+
+.page-content {
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 12px 14px 8px 14px; /* a bit more top padding in content */
+  box-sizing: border-box;
+  overflow-y: auto; /* allow inner page to scroll */
+  min-height: 0; /* allow children to shrink within flex layout */
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  height: 100%;
+}
+
+.toggle-switch {
+  width: 168px;
+  height: 80px;
+  border-radius: 40px;
+  cursor: pointer;
+  transition: background-color 220ms ease, box-shadow 220ms ease;
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  box-sizing: border-box;
+  background: #2a2f4a;
+  box-shadow: inset 0 4px 10px rgba(0,0,0,0.35), inset 0 -2px 6px rgba(255,255,255,0.05);
+}
+
+.toggle-switch.on {
+  background: linear-gradient(90deg, #fbbf24, var(--primary));
+  box-shadow: 0 8px 24px color-mix(in oklab, var(--primary) 30%, transparent), inset 0 -2px 6px rgba(0,0,0,0.25);
+}
+
+.toggle-handle {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(180deg, #fff, #dfe3f3);
+  border-radius: 50%;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.6);
+  transition: transform 220ms ease;
+}
+
+.toggle-switch.on .toggle-handle {
+  transform: translateX(76px);
+}
+
+.status-text {
+  margin-top: 4px;
+  font-size: 1.05rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.toggle-switch.loading { opacity: 0.85; cursor: default; }
+.loading-row { display: inline-flex; align-items: center; gap: 8px; }
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  display: inline-block;
+  animation: spin 0.85s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Navbar - fixed height and improved visuals */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 56px;
+  flex: 0 0 56px; /* lock height and ensure it fully fits */
+  background: rgba(10, 12, 24, 0.6);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 -6px 24px rgba(0,0,0,0.25);
+  padding: 0 8px;
+  box-sizing: border-box;
+}
+
+.nav-item {
+  appearance: none;
+  border: none;
+  background: transparent;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--muted);
+  height: 40px; /* ensure inner content doesn't stretch container */
+  line-height: 1;
+  padding: 0 10px;
+  border-radius: 12px;
+  transition: color 160ms ease, background-color 160ms ease;
+  flex: 1 1 0;
+}
+
+.nav-item:hover { background: rgba(255,255,255,0.04); }
+
+.nav-item.active { color: #111; background: linear-gradient(180deg, #fcd34d, var(--primary)); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25); }
+
+.nav-icon {
+  font-size: 1.2rem;
+}
+
+.nav-label {
+  font-size: 0.72rem;
+}
+
+/* Tools page: stacked full-width cards */
+.tools-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-content {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 10px;
+  row-gap: 10px;
+  align-content: start;
+}
+.form-group { margin: 0; }
+/* Make the radio group span full width across the grid */
+.form-group:has(.radio-group) { grid-column: 1 / -1; }
+.form-label {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.form-input {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  outline: none;
+}
+.form-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+.radio-group label {
+  display: block;
+  background: rgba(255,255,255,0.04);
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.radio-group input { margin-right: 10px; }
+.radio-group label:has(input:checked) {
+  background: linear-gradient(180deg, rgba(124,92,255,0.18), rgba(34,211,238,0.12));
+  border-color: rgba(124,92,255,0.35);
+}
+.radio-description {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin: 2px 0 0 22px;
+}
+
+.form-button {
+  padding: 10px 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: linear-gradient(90deg, var(--primary), var(--primary-2));
+  color: white;
+  border-radius: 10px;
+  cursor: pointer;
+  margin-top: 10px;
+  font-weight: 600;
+}
+.form-button:disabled { opacity: 0.6; }
+
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text);
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: transform 80ms ease, box-shadow 160ms ease, border-color 160ms ease, background-color 160ms ease;
+}
+.btn:hover { background: rgba(255,255,255,0.06); }
+.btn:active { transform: translateY(1px); }
+.btn-amber { background: linear-gradient(90deg, #fcd34d, var(--primary)); color: #111; border-color: rgba(0,0,0,0.25); box-shadow: 0 10px 24px color-mix(in oklab, var(--primary) 22%, transparent); }
+.btn-ghost { background: rgba(255,255,255,0.04); color: var(--text); }
+.btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+pre {
+  background: rgba(0,0,0,0.35);
+  padding: 10px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+/* Tools page: larger, airier controls and headings without overflow */
+.tool-header { display: flex; align-items: center; justify-content: space-between; }
+.tool-header h3 { font-size: 1.2rem; font-weight: 800; letter-spacing: 0.2px; margin: 0; }
+.tool-card { background: var(--card); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+.input-row { display: flex; gap: 10px; }
+.input-row .form-input { flex: 1 1 auto; }
+.tool-actions { display: flex; gap: 10px; }
+.tool-section-title { font-weight: 700; font-size: 0.95rem; margin: 0; color: var(--muted); }
+.tool-output { font-size: 0.9rem; max-height: 180px; overflow: auto; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.35); padding: 10px; }

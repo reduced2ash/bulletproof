@@ -1,0 +1,3 @@
+module bulletproof/backend
+
+go 1.22

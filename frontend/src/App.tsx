@@ -1,0 +1,138 @@
+import React, { useState } from 'react';
+import Settings from './Settings';
+import Tools from './Tools';
+import Navbar from './Navbar';
+import { bpConnect, bpDisconnect, ConnectPayload } from './backendClient';
+
+type Provider = 'warp' | 'gool' | 'psiphon';
+
+const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPayload }) => {
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [message, setMessage] = useState<string>('');
+
+  const pollUntilConnected = async (timeoutMs = 25000) => {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      // @ts-ignore
+      const st = await window.electron.status();
+      if (st?.connected) return st;
+      await new Promise(r => setTimeout(r, 300));
+    }
+    return null;
+  };
+
+  const handleToggle = async () => {
+    if (connecting) return;
+    try {
+      if (!connected) {
+        setConnecting(true);
+        setMessage('Connecting…');
+        const res = await bpConnect(buildPayload());
+        if (res && (res.error || res.Error)) {
+          setMessage(res.error || res.Error || 'Connect failed');
+          setConnecting(false);
+          return;
+        }
+        const st = await pollUntilConnected();
+        if (st) {
+          setConnected(true);
+          setMessage(st?.message || 'Connected');
+        } else {
+          setMessage('Connection timed out');
+        }
+        setConnecting(false);
+      } else {
+        setConnecting(true);
+        await bpDisconnect();
+        setConnected(false);
+        setMessage('Disconnected');
+        setConnecting(false);
+      }
+    } catch (e: any) {
+      setConnecting(false);
+      setMessage(e?.message || 'Error');
+    }
+  };
+
+  return (
+    <main className="app-main">
+      <div
+        className={`toggle-switch ${connected ? 'on' : 'off'} ${connecting ? 'loading' : ''}`}
+        onClick={handleToggle}
+      >
+        <div className="toggle-handle" />
+      </div>
+      <div className="status-text">
+        {connecting ? (
+          <span className="loading-row"><span className="spinner" />Connecting…</span>
+        ) : (
+          <span>{message || (connected ? 'Connected' : 'Not Connected')}</span>
+        )}
+      </div>
+    </main>
+  );
+};
+
+const App: React.FC = () => {
+  const [activePage, setActivePage] = useState<'main' | 'tools' | 'settings'>('main');
+
+  // Lifted settings state
+  const [provider, setProvider] = useState<Provider>('warp');
+  const [integration, setIntegration] = useState<'direct'|'pac'|'tun'>('direct');
+  const [server, setServer] = useState<string>('127.0.0.1');
+  const [port, setPort] = useState<number>(1080);
+  const [warpKey, setWarpKey] = useState<string>('');
+  const [exitCountry, setExitCountry] = useState<string>('US');
+  const [license, setLicense] = useState<'free' | 'warp+'>('free');
+
+  const buildPayload = (): ConnectPayload => ({
+    provider,
+    server: server || undefined,
+    port: port || undefined,
+    exitCountry,
+    options: { key: warpKey || undefined, bind: '127.0.0.1:8086', integration },
+  });
+
+  const renderPage = () => {
+    switch (activePage) {
+      case 'tools':
+        return <Tools />;
+      case 'settings':
+        return (
+          <Settings
+            provider={provider}
+            setProvider={setProvider}
+            integration={integration}
+            setIntegration={setIntegration}
+            server={server}
+            setServer={setServer}
+            port={port}
+            setPort={setPort}
+            warpKey={warpKey}
+            setWarpKey={setWarpKey}
+            exitCountry={exitCountry}
+            setExitCountry={setExitCountry}
+            license={license}
+            setLicense={setLicense}
+          />
+        );
+      default:
+        return <MainPage buildPayload={buildPayload} />;
+    }
+  };
+
+  return (
+    <div className="container">
+      <header className="app-header">
+        <h1>Bulletproof</h1>
+      </header>
+
+      <div className="page-content">{renderPage()}</div>
+
+      <Navbar activePage={activePage} onPageChange={setActivePage} />
+    </div>
+  );
+};
+
+export default App;

@@ -1,0 +1,319 @@
+
+let backendProc: ReturnType<typeof spawn> | null = null;
+
+function resolveBackendBinary(): string {
+  const custom = process.env.BACKEND_BIN;
+  if (custom) return custom;
+  const path = require('path');
+  const isWin = process.platform === 'win32';
+  const bin = isWin ? 'bulletproofd.exe' : 'bulletproofd';
+  // dev: project root is one level up from frontend; binary under ../backend
+  return path.join(process.cwd(), '..', 'backend', bin);
+}
+
+function resolveWarpPlusBinary(): string | null {
+  try {
+    const path = require('path');
+    const isWin = process.platform === 'win32';
+    const binName = isWin ? 'warp-plus.exe' : 'warp-plus';
+    const resRoot = process.resourcesPath || process.cwd();
+    const plat = process.platform; // darwin|win32|linux
+    const arch = process.arch;     // x64|arm64
+    const candidate = path.join(resRoot, 'bin', `${plat}-${arch}`, binName);
+    const fs = require('fs');
+    if (fs.existsSync(candidate)) return candidate;
+    // fallback to project tree during dev
+    const devCandidate = path.join(process.cwd(), 'resources', 'bin', `${plat}-${arch}`, binName);
+    if (fs.existsSync(devCandidate)) return devCandidate;
+  } catch {}
+  return null;
+}
+
+function resolveSingBoxBinary(): string | null {
+  try {
+    const path = require('path');
+    const isWin = process.platform === 'win32';
+    const binNameCandidates = isWin ? ['sb-helper.exe', 'sing-box.exe'] : ['sb-helper', 'sing-box'];
+    const resRoot = process.resourcesPath || process.cwd();
+    const plat = process.platform;
+    const arch = process.arch;
+    for (const binName of binNameCandidates) {
+      const candidate = path.join(resRoot, 'bin', `${plat}-${arch}`, binName);
+      const fs = require('fs');
+      if (fs.existsSync(candidate)) return candidate;
+      const devCandidate = path.join(process.cwd(), 'resources', 'bin', `${plat}-${arch}`, binName);
+      if (fs.existsSync(devCandidate)) return devCandidate;
+    }
+  } catch {}
+  return null;
+}
+
+function startBackend() {
+  try {
+    const bin = resolveBackendBinary();
+    const fs = require('fs');
+    if (!fs.existsSync(bin)) {
+      console.error('Backend binary not found at', bin);
+      return;
+    }
+    const warpPlusBin = resolveWarpPlusBinary();
+    const env = { ...process.env } as any;
+    if (warpPlusBin) env.WARPPLUS_BIN = warpPlusBin;
+    const singBoxBin = resolveSingBoxBinary();
+    if (singBoxBin) env.SINGBOX_BIN = singBoxBin;
+    backendProc = spawn(bin, ['-addr', '127.0.0.1:4765'], { stdio: 'inherit', env });
+  } catch (e) {
+    console.error('Failed to spawn backend:', e);
+  }
+}
+
+async function waitForHealth(timeoutMs = 8000): Promise<void> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch('http://127.0.0.1:4765/v1/health');
+      if (res.ok) return;
+    } catch {}
+    await new Promise(r => setTimeout(r, 300));
+  }
+}
+
+import { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } from 'electron';
+import path from 'path';
+import ping from 'ping';
+import Speedtest from 'fast-speedtest-api';
+import { spawn } from 'child_process';
+
+declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
+declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+
+let tray: Tray | null = null;
+let mainWindow: BrowserWindow | null = null;
+const isDev = !app.isPackaged;
+
+ipcMain.handle('ping', async (event, host) => {
+  try {
+    const result = await ping.promise.probe(host);
+    return result;
+  } catch (error) {
+    if (error instanceof Error) {
+      return { error: error.message };
+    }
+    return { error: 'An unknown error occurred' };
+  }
+});
+
+ipcMain.handle('speed-test', async () => {
+  try {
+    const speedtest = new Speedtest({
+      token: "your_token_here", // This needs a real token to work
+      verbose: false,
+      timeout: 10000,
+      https: true,
+      urlCount: 5,
+      bufferSize: 8,
+      unit: Speedtest.UNITS.Mbps,
+    });
+    const speed = await speedtest.getSpeed();
+    return { speed };
+  } catch (error) {
+    if (error instanceof Error) {
+      return { error: error.message };
+    }
+    return { error: 'An unknown error occurred' };
+  }
+});
+
+// Backend proxy to avoid CORS issues in renderer
+ipcMain.handle('bp-status', async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:4765/v1/status');
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'backend status failed' };
+  }
+});
+
+ipcMain.handle('bp-diag', async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:4765/v1/diag');
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'backend diag failed' };
+  }
+});
+
+ipcMain.handle('bp-connect', async (_evt, payload: any) => {
+  try {
+    const res = await fetch('http://127.0.0.1:4765/v1/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload || {}),
+    });
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'backend connect failed' };
+  }
+});
+
+ipcMain.handle('bp-disconnect', async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:4765/v1/disconnect', { method: 'POST' });
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'backend disconnect failed' };
+  }
+});
+
+ipcMain.handle('bp-proxy-test', async (_evt, bind?: string) => {
+  try {
+    const url = new URL('http://127.0.0.1:4765/v1/test/socks');
+    if (bind) url.searchParams.set('bind', bind);
+    const res = await fetch(url.toString());
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'proxy test failed' };
+  }
+});
+
+ipcMain.handle('bp-identity', async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:4765/v1/identity');
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'identity read failed' };
+  }
+});
+
+ipcMain.handle('bp-identity-reset', async () => {
+  try {
+    const res = await fetch('http://127.0.0.1:4765/v1/identity/reset', { method: 'POST' });
+    return await res.json();
+  } catch (e:any) {
+    return { error: e?.message || 'identity reset failed' };
+  }
+});
+
+function createWindow() {
+  mainWindow = new BrowserWindow({
+    width: 420,
+    height: 720,
+    resizable: false,
+    backgroundColor: '#0b0b0c',
+    webPreferences: {
+      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      nodeIntegration: false,
+      contextIsolation: true
+    },
+    show: false // Don't show the window initially
+  });
+
+  // Diagnostics for blank-screen issues
+  mainWindow.webContents.on('did-fail-load', (_e, code, desc) => {
+    console.error('did-fail-load:', code, desc);
+  });
+  mainWindow.webContents.on('render-process-gone', (_e, details) => {
+    console.error('render-process-gone:', details);
+  });
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('renderer did-finish-load');
+  });
+
+  mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
+
+  mainWindow.on('close', (event) => {
+    if (app.quitting) {
+      mainWindow = null;
+    } else {
+      event.preventDefault();
+      mainWindow?.hide();
+    }
+  });
+
+  mainWindow.on('ready-to-show', () => {
+    mainWindow?.show();
+    if (isDev) {
+      try { mainWindow?.webContents.openDevTools({ mode: 'detach' }); } catch {}
+    }
+  });
+}
+
+function createTray() {
+  const devIconPath = path.join(process.cwd(), 'src', 'assets', 'icon.png');
+  const prodIconPath = path.join(process.resourcesPath || process.cwd(), 'assets', 'icon.png');
+  const iconPath = isDev ? devIconPath : prodIconPath;
+
+  let icon = nativeImage.createFromPath(iconPath);
+  if (icon.isEmpty()) {
+    console.warn('Tray icon missing or failed to load at', iconPath);
+    icon = nativeImage.createEmpty();
+  }
+  try {
+    tray = new Tray(icon);
+  } catch (e) {
+    console.error('Failed to create Tray:', e);
+    tray = null;
+  }
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show App',
+      click: () => {
+        mainWindow?.show();
+      },
+    },
+    {
+      label: 'Start on Boot',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (item) => {
+        app.setLoginItemSettings({
+          openAtLogin: item.checked,
+        });
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quitting = true;
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setToolTip('Bulletproof VPN');
+  tray.setContextMenu(contextMenu);
+
+  tray.on('click', () => {
+    mainWindow?.show();
+  });
+}
+
+app.on('ready', async () => {
+  // Start backend in the background and give it a moment to become healthy
+  console.log('Starting backend…');
+  startBackend();
+  waitForHealth(5000).then(() => console.log('Backend healthy')).catch(() => console.warn('Backend health check timed out'));
+
+  createWindow();
+  createTray();
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow();
+    }
+  });
+});
+
+app.on('window-all-closed', () => {
+  // On macOS it's common for applications and their menu bar
+  // to stay active until the user quits explicitly with Cmd + Q
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
+app.on('before-quit', () => {
+  try { if (backendProc && backendProc.pid) { backendProc.kill(); } } catch {}
+});
