@@ -49,6 +49,10 @@ type Config struct {
     Country   string // exit country for psiphon/cfon
     CacheDir     string // directory for engine state/cache (recommended)
     LogPath      string // optional log file for stdout/stderr
+    TestURL      string // override connectivity test URL
+    IPv4Only     bool   // force IPv4 endpoints
+    IPv6Only     bool   // force IPv6 endpoints
+    Verbose      bool   // enable verbose logging
 }
 
 // Engine supervises a warp-plus process.
@@ -79,10 +83,15 @@ func (e *Engine) Start(ctx context.Context) error {
     if bin == "" { bin = defaultBin() }
 
     args := []string{}
+    if e.cfg.Verbose {
+        args = append(args, "--verbose")
+    }
     // Bind SOCKS5
     bind := e.cfg.Bind
     if bind == "" { bind = "127.0.0.1:8086" }
     args = append(args, "--bind", bind)
+    if e.cfg.IPv4Only { args = append(args, "-4") }
+    if e.cfg.IPv6Only { args = append(args, "-6") }
     if e.cfg.Key != "" {
         args = append(args, "--key", e.cfg.Key)
     }
@@ -91,6 +100,9 @@ func (e *Engine) Start(ctx context.Context) error {
     }
     if e.cfg.CacheDir != "" {
         args = append(args, "--cache-dir", e.cfg.CacheDir)
+    }
+    if e.cfg.TestURL != "" {
+        args = append(args, "--test-url", e.cfg.TestURL)
     }
     switch strings.ToLower(e.cfg.Mode) {
     case "warp", "":
@@ -106,7 +118,7 @@ func (e *Engine) Start(ctx context.Context) error {
         return fmt.Errorf("unknown mode: %s", e.cfg.Mode)
     }
 
-    // If LogPath specified, wrap runner to write to file
+    // If LogPath specified, wrap runner to write to file and annotate command line.
     if e.cfg.LogPath != "" {
         e.run = &fileRunner{logPath: e.cfg.LogPath}
     }
@@ -150,9 +162,30 @@ func (f *fileRunner) Start(ctx context.Context, name string, args ...string) (Pr
     if err := os.MkdirAll(filepath.Dir(f.logPath), 0o755); err != nil { return nil, err }
     lf, err := os.OpenFile(f.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
     if err != nil { return nil, err }
+    // annotate command line for diagnostics
+    _, _ = lf.WriteString("bulletproofd: starting warp-plus: " + name + " " + strings.Join(args, " ") + "\n")
+
     cmd := exec.CommandContext(ctx, name, args...)
+    cmd.Env = sanitizeEnv(os.Environ())
     cmd.Stdout = lf
     cmd.Stderr = lf
     if err := cmd.Start(); err != nil { return nil, err }
     return &execProcess{cmd: cmd}, nil
+}
+
+// sanitizeEnv removes potentially conflicting variables that some CLI parsers
+// may treat as flags (e.g., IDENTITY). This helps avoid errors like
+// "unknown flag \"identity\"" from third-party binaries.
+func sanitizeEnv(in []string) []string {
+    out := make([]string, 0, len(in))
+    for _, kv := range in {
+        // drop any env var whose key equals "IDENTITY" (case-insensitive)
+        // or ends with "_IDENTITY" to be safe (e.g., WGCF_IDENTITY)
+        upper := strings.ToUpper(kv)
+        if strings.HasPrefix(upper, "IDENTITY=") || strings.Contains(upper, "_IDENTITY=") {
+            continue
+        }
+        out = append(out, kv)
+    }
+    return out
 }

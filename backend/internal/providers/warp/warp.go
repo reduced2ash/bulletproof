@@ -7,6 +7,7 @@ import (
     "path/filepath"
     "strconv"
     "time"
+    "os"
 
     "bulletproof/backend/internal/core"
     "bulletproof/backend/internal/engine/warpplus"
@@ -36,6 +37,10 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         Country:  req.ExitCountry,
         CacheDir: stateDir,
         LogPath:  filepath.Join(stateDir, "warp-plus.log"),
+        TestURL:  firstNonEmpty(req.Options["testURL"], os.Getenv("WARPPLUS_TEST_URL")),
+        IPv4Only: os.Getenv("WARPPLUS_IPV4") == "1" || os.Getenv("WARPPLUS_IPV4") == "true",
+        IPv6Only: os.Getenv("WARPPLUS_IPV6") == "1" || os.Getenv("WARPPLUS_IPV6") == "true",
+        Verbose:  os.Getenv("WARPPLUS_VERBOSE") == "1" || os.Getenv("WARPPLUS_VERBOSE") == "true",
     }
     p.eng = warpplus.New(cfg)
     if err := p.eng.Start(context.Background()); err != nil {
@@ -84,6 +89,13 @@ func endpointFrom(req core.ConnectRequest) string {
 func bindFrom(req core.ConnectRequest) string {
     if b := req.Options["bind"]; b != "" { return b }
     return "127.0.0.1:8086"
+}
+
+func firstNonEmpty(values ...string) string {
+    for _, v := range values {
+        if v != "" { return v }
+    }
+    return ""
 }
 
 func modeFromProvider(p string) string {
