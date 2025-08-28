@@ -134,6 +134,7 @@ export default function Settings({
           type="text"
           id="server-address"
           className="form-input"
+          placeholder="auto (leave empty)"
           value={server}
           onChange={(e) => setServer(e.target.value)}
         />
@@ -145,7 +146,8 @@ export default function Settings({
           type="number"
           id="server-port"
           className="form-input"
-          value={port}
+          placeholder="auto"
+          value={port || ''}
           onChange={(e) => setPort(parseInt(e.target.value || '0', 10))}
         />
       </div>

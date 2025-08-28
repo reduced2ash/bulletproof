@@ -11,7 +11,7 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<string>('');
 
-  const pollUntilConnected = async (timeoutMs = 25000) => {
+  const pollUntilConnected = async (timeoutMs = 75000) => {
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       // @ts-ignore
@@ -80,8 +80,9 @@ const App: React.FC = () => {
   // Lifted settings state
   const [provider, setProvider] = useState<Provider>('warp');
   const [integration, setIntegration] = useState<'direct'|'pac'|'tun'>('direct');
-  const [server, setServer] = useState<string>('127.0.0.1');
-  const [port, setPort] = useState<number>(1080);
+  // Leave empty by default so backend auto-selects endpoints
+  const [server, setServer] = useState<string>('');
+  const [port, setPort] = useState<number>(0);
   const [warpKey, setWarpKey] = useState<string>('');
   const [exitCountry, setExitCountry] = useState<string>('US');
   const [license, setLicense] = useState<'free' | 'warp+'>('free');

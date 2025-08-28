@@ -42,7 +42,7 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         p.st = core.Status{Connected: false, Provider: p.Name(), Message: err.Error()}
         return err
     }
-    if err := waitPort(cfg.Bind, 20*time.Second); err != nil {
+    if err := waitPort(cfg.Bind, 60*time.Second); err != nil {
         p.st = core.Status{Connected: false, Provider: p.Name(), Message: "engine started but SOCKS not ready"}
         return err
     }

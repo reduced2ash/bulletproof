@@ -42,8 +42,8 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         p.st = core.Status{Connected: false, Provider: p.Name(), Message: err.Error()}
         return err
     }
-    // Wait a short time for the local SOCKS port to open as readiness signal.
-    if err := waitPort(cfg.Bind, 20*time.Second); err != nil {
+    // Wait for the local SOCKS port to open as readiness signal. Scans can take >20s on some networks.
+    if err := waitPort(cfg.Bind, 60*time.Second); err != nil {
         p.st = core.Status{Connected: false, Provider: p.Name(), Message: "engine started but SOCKS not ready"}
         return err
     }
