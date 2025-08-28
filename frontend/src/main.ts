@@ -1,6 +1,31 @@
 
 let backendProc: ReturnType<typeof spawn> | null = null;
 
+// Ensure the spawned backend is terminated reliably across platforms
+function killBackendTree() {
+  try {
+    if (!backendProc || !backendProc.pid) return;
+    const pid = backendProc.pid;
+    // Attempt graceful termination first
+    try { backendProc.kill(); } catch {}
+    // Platform-specific harder kill of the process tree
+    if (process.platform === 'win32') {
+      try {
+        const cp = require('child_process');
+        cp.spawnSync('taskkill', ['/pid', String(pid), '/t', '/f'], { stdio: 'ignore' });
+      } catch {}
+    } else {
+      try {
+        // Try to kill the whole process group, if supported
+        try { process.kill(-pid, 'SIGTERM'); } catch {}
+        // Fallback: pkill children by parent PID
+        const cp = require('child_process');
+        cp.spawnSync('pkill', ['-P', String(pid)], { stdio: 'ignore' });
+      } catch {}
+    }
+  } catch {}
+}
+
 function resolveBackendBinary(): string {
   const custom = process.env.BACKEND_BIN;
   if (custom) return custom;
@@ -62,6 +87,7 @@ function startBackend() {
     const singBoxBin = resolveSingBoxBinary();
     if (singBoxBin) env.SINGBOX_BIN = singBoxBin;
     backendProc = spawn(bin, ['-addr', '127.0.0.1:4765'], { stdio: 'inherit', env });
+    backendProc.on('exit', () => { backendProc = null; });
   } catch (e) {
     console.error('Failed to spawn backend:', e);
   }
@@ -90,6 +116,10 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 let tray: Tray | null = null;
 let mainWindow: BrowserWindow | null = null;
 const isDev = !app.isPackaged;
+
+function cleanup() {
+  try { killBackendTree(); } catch {}
+}
 
 ipcMain.handle('ping', async (event, host) => {
   try {
@@ -224,10 +254,18 @@ function createWindow() {
   mainWindow.on('close', (event) => {
     if (app.quitting) {
       mainWindow = null;
-    } else {
-      event.preventDefault();
-      mainWindow?.hide();
+      return;
     }
+    // In development, closing the window should fully quit to avoid lingering processes
+    if (isDev) {
+      event.preventDefault();
+      app.quitting = true;
+      app.quit();
+      return;
+    }
+    // In production, default to tray-minimize behavior
+    event.preventDefault();
+    mainWindow?.hide();
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -314,6 +352,10 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('before-quit', () => {
-  try { if (backendProc && backendProc.pid) { backendProc.kill(); } } catch {}
-});
+app.on('before-quit', () => { cleanup(); });
+app.on('will-quit', () => { cleanup(); });
+
+// When running via a dev server, ensure we also clean up on signals
+process.on('SIGINT', () => { app.quitting = true; cleanup(); app.quit(); });
+process.on('SIGTERM', () => { app.quitting = true; cleanup(); app.quit(); });
+process.on('exit', () => { cleanup(); });
