@@ -84,6 +84,10 @@ function startBackend() {
     const warpPlusBin = resolveWarpPlusBinary();
     const env = { ...process.env } as any;
     if (warpPlusBin) env.WARPPLUS_BIN = warpPlusBin;
+    // Prefer IPv4 endpoints and HTTPS test URL; enable verbose logs for diagnostics
+    if (!env.WARPPLUS_IPV4) env.WARPPLUS_IPV4 = '1';
+    if (!env.WARPPLUS_VERBOSE) env.WARPPLUS_VERBOSE = '1';
+    if (!env.WARPPLUS_TEST_URL) env.WARPPLUS_TEST_URL = 'https://1.1.1.1/cdn-cgi/trace';
     const singBoxBin = resolveSingBoxBinary();
     if (singBoxBin) env.SINGBOX_BIN = singBoxBin;
     backendProc = spawn(bin, ['-addr', '127.0.0.1:4765'], { stdio: 'inherit', env });
