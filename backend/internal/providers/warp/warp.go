@@ -8,6 +8,7 @@ import (
     "strconv"
     "time"
     "os"
+    "strings"
 
     "bulletproof/backend/internal/core"
     "bulletproof/backend/internal/engine/warpplus"
@@ -28,7 +29,7 @@ func (p *provider) Name() string { return "warp" }
 
 func (p *provider) Connect(req core.ConnectRequest) error {
     stateDir := req.Options["stateDir"]
-    cfg := warpplus.Config{
+    baseCfg := warpplus.Config{
         Bin:      req.Options["bin"],
         Key:      req.Options["key"],
         Endpoint: endpointFrom(req),
@@ -37,20 +38,40 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         Country:  req.ExitCountry,
         CacheDir: stateDir,
         LogPath:  filepath.Join(stateDir, "warp-plus.log"),
-        TestURL:  firstNonEmpty(req.Options["testURL"], os.Getenv("WARPPLUS_TEST_URL")),
+        DNS:      firstNonEmpty(req.Options["dns"], os.Getenv("WARPPLUS_DNS")),
         IPv4Only: os.Getenv("WARPPLUS_IPV4") == "1" || os.Getenv("WARPPLUS_IPV4") == "true",
         IPv6Only: os.Getenv("WARPPLUS_IPV6") == "1" || os.Getenv("WARPPLUS_IPV6") == "true",
         Verbose:  os.Getenv("WARPPLUS_VERBOSE") == "1" || os.Getenv("WARPPLUS_VERBOSE") == "true",
     }
-    p.eng = warpplus.New(cfg)
-    if err := p.eng.Start(context.Background()); err != nil {
-        p.st = core.Status{Connected: false, Provider: p.Name(), Message: err.Error()}
-        return err
+    // Try one or more test URLs to coax warp-plus into opening SOCKS in restrictive networks.
+    urls := candidateTestURLs(req)
+    var lastErr error
+    var usedURL string
+    for i, u := range urls {
+        cfg := baseCfg
+        cfg.TestURL = u
+        eng := warpplus.New(cfg)
+        if err := eng.Start(context.Background()); err != nil {
+            lastErr = err
+            continue
+        }
+        // Wait a bounded time per attempt; total sum still reasonable.
+        if err := waitPort(cfg.Bind, 45*time.Second); err != nil {
+            _ = eng.Stop()
+            lastErr = err
+            continue
+        }
+        // Success
+        p.eng = eng
+        usedURL = u
+        lastErr = nil
+        break
+    _ = i // silence unused warning if build tags strip loops
     }
-    // Wait for the local SOCKS port to open as readiness signal. Scans can take >20s on some networks.
-    if err := waitPort(cfg.Bind, 60*time.Second); err != nil {
+    if p.eng == nil {
+        if lastErr == nil { lastErr = fmt.Errorf("failed to open SOCKS with any testURL") }
         p.st = core.Status{Connected: false, Provider: p.Name(), Message: "engine started but SOCKS not ready"}
-        return err
+        return lastErr
     }
     // Integration mode: direct (default), pac, or tun via sing-box
     switch req.Options["integration"] {
@@ -58,7 +79,7 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         p.wantPAC = true
         _ = proxy.EnablePAC(context.Background(), "http://127.0.0.1:4765/proxy.pac")
     case "tun":
-        p.sb = singbox.New(singbox.Config{SocksAddr: cfg.Bind, StateDir: stateDir})
+        p.sb = singbox.New(singbox.Config{SocksAddr: baseCfg.Bind, StateDir: stateDir})
         if err := p.sb.Start(context.Background()); err != nil {
             p.st = core.Status{Connected: false, Provider: p.Name(), Message: "sing-box failed: " + err.Error()}
             return err
@@ -66,7 +87,9 @@ func (p *provider) Connect(req core.ConnectRequest) error {
     default:
         // direct: app uses SOCKS 127.0.0.1:8086; no system changes
     }
-    p.st = core.Status{Connected: true, Provider: p.Name(), Message: "connected", ExitCountry: req.ExitCountry, Integration: req.Options["integration"], Bind: cfg.Bind, PacEnabled: p.wantPAC, SingBox: p.sb != nil}
+    msg := "connected"
+    if usedURL != "" { msg = "connected (probe=" + usedURL + ")" }
+    p.st = core.Status{Connected: true, Provider: p.Name(), Message: msg, ExitCountry: req.ExitCountry, Integration: req.Options["integration"], Bind: baseCfg.Bind, PacEnabled: p.wantPAC, SingBox: p.sb != nil}
     return nil
 }
 
@@ -96,6 +119,56 @@ func firstNonEmpty(values ...string) string {
         if v != "" { return v }
     }
     return ""
+}
+
+// candidateTestURLs returns a list of test URLs to try in order.
+// Priority: explicit request option, WARPPLUS_TEST_URL, WARPPLUS_TEST_URLS (comma-separated), then a small default set.
+func candidateTestURLs(req core.ConnectRequest) []string {
+    out := make([]string, 0, 16)
+    add := func(u string) { if u != "" && !contains(out, u) { out = append(out, u) } }
+    // Highest priority: explicit request option; then env overrides.
+    add(req.Options["testURL"])
+    add(os.Getenv("WARPPLUS_TEST_URL"))
+    if list := os.Getenv("WARPPLUS_TEST_URLS"); list != "" {
+        for _, p := range splitAndTrim(list, ',') { add(p) }
+    }
+    // Reasonable defaults: Cloudflare connectivity, popular captive portal checks, IP literals.
+    defaults := []string{
+        "http://connectivity.cloudflareclient.com/cdn-cgi/trace",
+        "http://connectivitycheck.gstatic.com/generate_204",
+        "http://1.1.1.1/cdn-cgi/trace",
+        "https://1.1.1.1/cdn-cgi/trace",
+        "http://detectportal.firefox.com/success.txt",
+        "http://neverssl.com/",
+        "http://cp.cloudflare.com/",
+        "http://example.com/",
+    }
+    for _, d := range defaults { add(d) }
+    return out
+}
+
+func splitAndTrim(s string, sep rune) []string {
+    out := make([]string, 0, 8)
+    cur := make([]rune, 0, len(s))
+    flush := func() {
+        if len(cur) == 0 { return }
+        str := string(cur)
+        // trim spaces
+        str = strings.TrimSpace(str)
+        if str != "" { out = append(out, str) }
+        cur = cur[:0]
+    }
+    for _, r := range s {
+        if r == sep { flush(); continue }
+        cur = append(cur, r)
+    }
+    flush()
+    return out
+}
+
+func contains(list []string, v string) bool {
+    for _, x := range list { if x == v { return true } }
+    return false
 }
 
 func modeFromProvider(p string) string {
