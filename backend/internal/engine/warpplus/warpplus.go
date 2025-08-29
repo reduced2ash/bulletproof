@@ -50,6 +50,7 @@ type Config struct {
     CacheDir     string // directory for engine state/cache (recommended)
     LogPath      string // optional log file for stdout/stderr
     TestURL      string // override connectivity test URL
+    DNS          string // override DNS server used by engine (e.g., 1.1.1.1)
     IPv4Only     bool   // force IPv4 endpoints
     IPv6Only     bool   // force IPv6 endpoints
     Verbose      bool   // enable verbose logging
@@ -103,6 +104,9 @@ func (e *Engine) Start(ctx context.Context) error {
     }
     if e.cfg.TestURL != "" {
         args = append(args, "--test-url", e.cfg.TestURL)
+    }
+    if e.cfg.DNS != "" {
+        args = append(args, "--dns", e.cfg.DNS)
     }
     switch strings.ToLower(e.cfg.Mode) {
     case "warp", "":

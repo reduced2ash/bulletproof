@@ -5,6 +5,8 @@ import (
     "log"
     "net/http"
     "os"
+    "net"
+    "time"
 
     "bulletproof/backend/internal/core"
     "bulletproof/backend/internal/engine/warpplus"
@@ -161,6 +163,10 @@ func (h *httpAPI) identityReset(w http.ResponseWriter, r *http.Request) {
 func (h *httpAPI) diag(w http.ResponseWriter, r *http.Request) {
     st := h.mgr.Status(r.Context())
     id, ok, _ := warpreg.Load(h.mgr.StateDir())
+    // quick socks listen probe
+    socks := "127.0.0.1:8086"
+    if st.Bind != "" { socks = st.Bind }
+    listening := probeTCP(socks, 350*time.Millisecond)
     type idOut struct {
         Exists     bool   `json:"exists"`
         DeviceID   string `json:"deviceId,omitempty"`
@@ -185,8 +191,23 @@ func (h *httpAPI) diag(w http.ResponseWriter, r *http.Request) {
             "warpLog": h.mgr.StateDir()+"/warp-plus.log",
             "singboxConfig": h.mgr.StateDir()+"/singbox.json",
         },
+        "socks": map[string]any{
+            "bind": socks,
+            "listening": listening,
+        },
     }
     writeJSON(w, http.StatusOK, out)
+}
+
+// probeTCP returns true if a TCP connect to addr succeeds within timeout.
+func probeTCP(addr string, timeout time.Duration) bool {
+    d := net.Dialer{Timeout: timeout}
+    c, err := d.Dial("tcp", addr)
+    if err == nil {
+        c.Close()
+        return true
+    }
+    return false
 }
 
 // testSocks performs a simple HTTP GET via the local SOCKS5 proxy to confirm connectivity.
