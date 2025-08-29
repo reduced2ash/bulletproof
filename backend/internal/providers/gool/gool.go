@@ -14,6 +14,7 @@ import (
     "bulletproof/backend/internal/engine/warpplus"
     "bulletproof/backend/internal/engine/singbox"
     "bulletproof/backend/internal/system/proxy"
+    "bulletproof/backend/internal/net/shimsocks"
 )
 
 type provider struct{
@@ -21,6 +22,7 @@ type provider struct{
     eng *warpplus.Engine
     sb  *singbox.Engine
     wantPAC bool
+    ss  *shimsocks.Server
 }
 
 func New() core.Provider { return &provider{} }
@@ -29,11 +31,13 @@ func (p *provider) Name() string { return "gool" }
 
 func (p *provider) Connect(req core.ConnectRequest) error {
     stateDir := req.Options["stateDir"]
+    publicBind := bindFrom(req)
+    warpBind := altBind(publicBind, 18086)
     baseCfg := warpplus.Config{
         Bin:      req.Options["bin"],
         Key:      req.Options["key"],
         Endpoint: endpointFrom(req),
-        Bind:     bindFrom(req),
+        Bind:     warpBind,
         Mode:     "gool",
         Country:  req.ExitCountry,
         CacheDir: stateDir,
@@ -42,6 +46,12 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         IPv4Only: os.Getenv("WARPPLUS_IPV4") == "1" || os.Getenv("WARPPLUS_IPV4") == "true",
         IPv6Only: os.Getenv("WARPPLUS_IPV6") == "1" || os.Getenv("WARPPLUS_IPV6") == "true",
         Verbose:  os.Getenv("WARPPLUS_VERBOSE") == "1" || os.Getenv("WARPPLUS_VERBOSE") == "true",
+    }
+    allowDirect := os.Getenv("BP_SOCKS_DIRECT_FALLBACK") == "1" || os.Getenv("BP_SOCKS_DIRECT_FALLBACK") == "true"
+    p.ss = shimsocks.New(shimsocks.Config{ListenAddr: publicBind, UpstreamSocks: warpBind, AllowDirectFallback: allowDirect})
+    if err := p.ss.Start(context.Background()); err != nil {
+        p.st = core.Status{Connected: false, Provider: p.Name(), Message: "shim socks failed: " + err.Error()}
+        return err
     }
     urls := candidateTestURLs(req)
     var lastErr error
@@ -65,24 +75,54 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         break
     }
     if p.eng == nil {
-        if lastErr == nil { lastErr = fmt.Errorf("failed to open SOCKS with any testURL") }
-        p.st = core.Status{Connected: false, Provider: p.Name(), Message: "engine started but SOCKS not ready"}
-        return lastErr
+        eps, scanErr := warpplus.Scan(context.Background(), baseCfg.Bin)
+        if scanErr == nil && len(eps) > 0 {
+            maxEP := len(eps)
+            if maxEP > 15 { maxEP = 15 }
+            scanURLs := candidateTestURLs(req)
+            if len(scanURLs) > 3 { scanURLs = scanURLs[:3] }
+            for i := 0; i < maxEP; i++ {
+                for _, u := range scanURLs {
+                    cfg := baseCfg
+                    cfg.Endpoint = eps[i].Address
+                    cfg.TestURL = u
+                    eng := warpplus.New(cfg)
+                    if err := eng.Start(context.Background()); err != nil { lastErr = err; continue }
+                    if err := waitPort(cfg.Bind, 35*time.Second); err != nil { _ = eng.Stop(); lastErr = err; continue }
+                    p.eng = eng
+                    usedURL = u + ", ep=" + cfg.Endpoint
+                    lastErr = nil
+                    break
+                }
+                if p.eng != nil { break }
+            }
+        } else if scanErr != nil {
+            lastErr = scanErr
+        }
+        if p.eng == nil {
+            if lastErr == nil { lastErr = fmt.Errorf("failed to open SOCKS with any testURL or scanned endpoint") }
+            p.st = core.Status{Connected: false, Provider: p.Name(), Message: "engine started but SOCKS not ready"}
+            return lastErr
+        }
     }
     switch req.Options["integration"] {
     case "pac":
         p.wantPAC = true
         _ = proxy.EnablePAC(context.Background(), "http://127.0.0.1:4765/proxy.pac")
     case "tun":
-        p.sb = singbox.New(singbox.Config{SocksAddr: baseCfg.Bind, StateDir: stateDir})
+        p.sb = singbox.New(singbox.Config{SocksAddr: publicBind, StateDir: stateDir})
         if err := p.sb.Start(context.Background()); err != nil {
             p.st = core.Status{Connected: false, Provider: p.Name(), Message: "sing-box failed: " + err.Error()}
             return err
         }
     }
-    msg := "connected"
+    msg := "connected (shim; warp warming)"
     if usedURL != "" { msg = "connected (probe=" + usedURL + ")" }
-    p.st = core.Status{Connected: true, Provider: p.Name(), Message: msg, ExitCountry: req.ExitCountry, Integration: req.Options["integration"], Bind: baseCfg.Bind, PacEnabled: p.wantPAC, SingBox: p.sb != nil}
+    p.st = core.Status{Connected: true, Provider: p.Name(), Message: msg, ExitCountry: req.ExitCountry, Integration: req.Options["integration"], Bind: publicBind, PacEnabled: p.wantPAC, SingBox: p.sb != nil}
+    go func() {
+        ready := waitPort(warpBind, 3*time.Minute) == nil
+        if ready { p.st.Message = "connected (warp active)" }
+    }()
     return nil
 }
 
@@ -90,6 +130,7 @@ func (p *provider) Disconnect() error {
     if p.sb != nil { _ = p.sb.Stop(); p.sb = nil }
     if p.wantPAC { _ = proxy.DisablePAC(context.Background()); p.wantPAC = false }
     if p.eng != nil { _ = p.eng.Stop() }
+    if p.ss != nil { _ = p.ss.Stop(); p.ss = nil }
     p.st = core.Status{}
     return nil
 }
@@ -171,4 +212,10 @@ func waitPort(addr string, timeout time.Duration) error {
         time.Sleep(250 * time.Millisecond)
     }
     return fmt.Errorf("timeout waiting for %s", addr)
+}
+
+func altBind(base string, port int) string {
+    host, _, err := net.SplitHostPort(base)
+    if err != nil { return fmt.Sprintf("127.0.0.1:%d", port) }
+    return net.JoinHostPort(host, strconv.Itoa(port))
 }
