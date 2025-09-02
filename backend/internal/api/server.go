@@ -167,6 +167,13 @@ func (h *httpAPI) diag(w http.ResponseWriter, r *http.Request) {
     socks := "127.0.0.1:8086"
     if st.Bind != "" { socks = st.Bind }
     listening := probeTCP(socks, 350*time.Millisecond)
+    // also probe warp-plus internal bind if using shim (default 18086 on same host)
+    warpBind := ""
+    if host, _, err := net.SplitHostPort(socks); err == nil {
+        warpBind = net.JoinHostPort(host, "18086")
+    }
+    warpUp := false
+    if warpBind != "" { warpUp = probeTCP(warpBind, 250*time.Millisecond) }
     type idOut struct {
         Exists     bool   `json:"exists"`
         DeviceID   string `json:"deviceId,omitempty"`
@@ -194,6 +201,8 @@ func (h *httpAPI) diag(w http.ResponseWriter, r *http.Request) {
         "socks": map[string]any{
             "bind": socks,
             "listening": listening,
+            "warpBind": warpBind,
+            "warpListening": warpUp,
         },
     }
     writeJSON(w, http.StatusOK, out)
