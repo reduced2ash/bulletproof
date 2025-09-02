@@ -2,19 +2,21 @@ package gool
 
 import (
     "context"
+    "encoding/json"
+    "errors"
     "fmt"
     "net"
+    "os"
     "path/filepath"
     "strconv"
-    "time"
-    "os"
     "strings"
+    "time"
 
     "bulletproof/backend/internal/core"
-    "bulletproof/backend/internal/engine/warpplus"
     "bulletproof/backend/internal/engine/singbox"
-    "bulletproof/backend/internal/system/proxy"
+    "bulletproof/backend/internal/engine/warpplus"
     "bulletproof/backend/internal/net/shimsocks"
+    "bulletproof/backend/internal/system/proxy"
 )
 
 type provider struct{
@@ -31,7 +33,9 @@ func (p *provider) Name() string { return "gool" }
 
 func (p *provider) Connect(req core.ConnectRequest) error {
     stateDir := req.Options["stateDir"]
-    publicBind := bindFrom(req)
+    // Choose/persist bind similar to warp provider
+    publicBind, err := choosePublicBind(stateDir, bindFrom(req))
+    if err != nil { return err }
     warpBind := altBind(publicBind, 18086)
     baseCfg := warpplus.Config{
         Bin:      req.Options["bin"],
@@ -53,58 +57,56 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         p.st = core.Status{Connected: false, Provider: p.Name(), Message: "shim socks failed: " + err.Error()}
         return err
     }
-    urls := candidateTestURLs(req)
-    var lastErr error
+    // Persist bind
+    _ = persistBind(stateDir, publicBind)
+    // Start engine attempts in background
     var usedURL string
-    for _, u := range urls {
-        cfg := baseCfg
-        cfg.TestURL = u
-        eng := warpplus.New(cfg)
-        if err := eng.Start(context.Background()); err != nil {
-            lastErr = err
-            continue
-        }
-        if err := waitPort(cfg.Bind, 45*time.Second); err != nil {
-            _ = eng.Stop()
-            lastErr = err
-            continue
-        }
-        p.eng = eng
-        usedURL = u
-        lastErr = nil
-        break
-    }
-    if p.eng == nil {
-        eps, scanErr := warpplus.Scan(context.Background(), baseCfg.Bin)
-        if scanErr == nil && len(eps) > 0 {
-            maxEP := len(eps)
-            if maxEP > 15 { maxEP = 15 }
-            scanURLs := candidateTestURLs(req)
-            if len(scanURLs) > 3 { scanURLs = scanURLs[:3] }
-            for i := 0; i < maxEP; i++ {
-                for _, u := range scanURLs {
-                    cfg := baseCfg
-                    cfg.Endpoint = eps[i].Address
-                    cfg.TestURL = u
-                    eng := warpplus.New(cfg)
-                    if err := eng.Start(context.Background()); err != nil { lastErr = err; continue }
-                    if err := waitPort(cfg.Bind, 35*time.Second); err != nil { _ = eng.Stop(); lastErr = err; continue }
-                    p.eng = eng
-                    usedURL = u + ", ep=" + cfg.Endpoint
-                    lastErr = nil
-                    break
-                }
-                if p.eng != nil { break }
-            }
-        } else if scanErr != nil {
-            lastErr = scanErr
+    go func() {
+        urls := candidateTestURLs(req)
+        var lastErr error
+        for _, u := range urls {
+            cfg := baseCfg
+            cfg.TestURL = u
+            eng := warpplus.New(cfg)
+            if err := eng.Start(context.Background()); err != nil { lastErr = err; continue }
+            if err := waitPort(cfg.Bind, 45*time.Second); err != nil { _ = eng.Stop(); lastErr = err; continue }
+            p.eng = eng
+            usedURL = u
+            lastErr = nil
+            break
         }
         if p.eng == nil {
-            if lastErr == nil { lastErr = fmt.Errorf("failed to open SOCKS with any testURL or scanned endpoint") }
-            p.st = core.Status{Connected: false, Provider: p.Name(), Message: "engine started but SOCKS not ready"}
-            return lastErr
+            eps, scanErr := warpplus.Scan(context.Background(), baseCfg.Bin)
+            if scanErr == nil && len(eps) > 0 {
+                maxEP := len(eps)
+                if maxEP > 15 { maxEP = 15 }
+                scanURLs := candidateTestURLs(req)
+                if len(scanURLs) > 3 { scanURLs = scanURLs[:3] }
+                for i := 0; i < maxEP && p.eng == nil; i++ {
+                    for _, u := range scanURLs {
+                        cfg := baseCfg
+                        cfg.Endpoint = eps[i].Address
+                        cfg.TestURL = u
+                        eng := warpplus.New(cfg)
+                        if err := eng.Start(context.Background()); err != nil { lastErr = err; continue }
+                        if err := waitPort(cfg.Bind, 35*time.Second); err != nil { _ = eng.Stop(); lastErr = err; continue }
+                        p.eng = eng
+                        usedURL = u + ", ep=" + cfg.Endpoint
+                        lastErr = nil
+                        break
+                    }
+                }
+            }
+            if p.eng == nil && lastErr != nil {
+                p.st.Message = "shim active; warp pending: " + lastErr.Error()
+            }
         }
-    }
+        if p.eng != nil {
+            if err := waitPort(warpBind, 3*time.Minute); err == nil {
+                p.st.Message = "connected (warp active)"
+            }
+        }
+    }()
     switch req.Options["integration"] {
     case "pac":
         p.wantPAC = true
@@ -119,10 +121,6 @@ func (p *provider) Connect(req core.ConnectRequest) error {
     msg := "connected (shim; warp warming)"
     if usedURL != "" { msg = "connected (probe=" + usedURL + ")" }
     p.st = core.Status{Connected: true, Provider: p.Name(), Message: msg, ExitCountry: req.ExitCountry, Integration: req.Options["integration"], Bind: publicBind, PacEnabled: p.wantPAC, SingBox: p.sb != nil}
-    go func() {
-        ready := waitPort(warpBind, 3*time.Minute) == nil
-        if ready { p.st.Message = "connected (warp active)" }
-    }()
     return nil
 }
 
@@ -146,6 +144,39 @@ func endpointFrom(req core.ConnectRequest) string {
 func bindFrom(req core.ConnectRequest) string {
     if b := req.Options["bind"]; b != "" { return b }
     return "127.0.0.1:8086"
+}
+
+// Reuse bind persistence/selection helpers from warp provider by duplicating minimal logic here
+func choosePublicBind(stateDir string, requested string) (string, error) {
+    tryListen := func(addr string) bool {
+        ln, err := net.Listen("tcp", addr)
+        if err != nil { return false }
+        _ = ln.Close()
+        return true
+    }
+    if requested != "" && tryListen(requested) { return requested, nil }
+    if last, ok := loadBind(stateDir); ok && tryListen(last) { return last, nil }
+    host := "127.0.0.1"
+    for p := 8086; p <= 8090; p++ {
+        addr := net.JoinHostPort(host, strconv.Itoa(p))
+        if tryListen(addr) { return addr, nil }
+    }
+    return "", errors.New("no available port in 8086-8090")
+}
+
+func bindPath(stateDir string) string { return filepath.Join(stateDir, "socks-bind.json") }
+func persistBind(stateDir, bind string) error {
+    b, _ := json.Marshal(map[string]string{"bind": bind})
+    return os.WriteFile(bindPath(stateDir), b, 0o644)
+}
+func loadBind(stateDir string) (string, bool) {
+    b, err := os.ReadFile(bindPath(stateDir))
+    if err != nil { return "", false }
+    var m map[string]string
+    if json.Unmarshal(b, &m) != nil { return "", false }
+    v := m["bind"]
+    if v == "" { return "", false }
+    return v, true
 }
 
 func firstNonEmpty(values ...string) string {

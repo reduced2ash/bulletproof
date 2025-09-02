@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Settings from './Settings';
 import Tools from './Tools';
 import Navbar from './Navbar';
-import { bpConnect, bpDisconnect, ConnectPayload } from './backendClient';
+import { bpConnect, bpDisconnect, ConnectPayload, bpProxyTest, bpProbePort } from './backendClient';
 
 type Provider = 'warp' | 'gool' | 'psiphon';
 
@@ -10,6 +10,7 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<string>('');
+  const [bind, setBind] = useState<string>('');
 
   const pollUntilConnected = async (timeoutMs = 75000) => {
     const start = Date.now();
@@ -36,8 +37,30 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
         }
         const st = await pollUntilConnected();
         if (st) {
-          setConnected(true);
-          setMessage(st?.message || 'Connected');
+          const chosenBind = st?.bind || st?.Bind || '';
+          if (chosenBind) setBind(chosenBind);
+          // Probe listener quickly via TCP, then perform a tiny HTTP fetch via socks
+          try {
+            const probe = await bpProbePort(chosenBind);
+            if (!probe?.listening) {
+              setMessage('Port not listening yet…');
+              // one more short wait cycle
+              await new Promise(r => setTimeout(r, 800));
+            }
+          } catch {}
+          try {
+            const test = await bpProxyTest(chosenBind);
+            if (test && !test.error) {
+              setConnected(true);
+              setMessage(st?.message || `Connected · ${chosenBind}`);
+            } else {
+              setMessage(st?.message || 'Connected (probe failed)');
+              setConnected(true);
+            }
+          } catch {
+            setConnected(true);
+            setMessage(st?.message || 'Connected');
+          }
         } else {
           setMessage('Connection timed out');
         }
@@ -46,6 +69,7 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
         setConnecting(true);
         await bpDisconnect();
         setConnected(false);
+        setBind('');
         setMessage('Disconnected');
         setConnecting(false);
       }
@@ -67,7 +91,7 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
         {connecting ? (
           <span className="loading-row"><span className="spinner" />Connecting…</span>
         ) : (
-          <span>{message || (connected ? 'Connected' : 'Not Connected')}</span>
+          <span>{message || (connected ? (bind ? `Connected · ${bind}` : 'Connected') : 'Not Connected')}</span>
         )}
       </div>
     </main>
@@ -92,7 +116,8 @@ const App: React.FC = () => {
     server: server || undefined,
     port: port || undefined,
     exitCountry,
-    options: { key: warpKey || undefined, bind: '127.0.0.1:8086', integration },
+    // Do not send bind; backend selects/persists an available one and returns it in status
+    options: { key: warpKey || undefined, integration },
   });
 
   const renderPage = () => {

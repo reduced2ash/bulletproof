@@ -88,10 +88,33 @@ function startBackend() {
     if (!env.WARPPLUS_IPV4) env.WARPPLUS_IPV4 = '1';
     if (!env.WARPPLUS_VERBOSE) env.WARPPLUS_VERBOSE = '1';
     if (!env.WARPPLUS_TEST_URL) env.WARPPLUS_TEST_URL = 'https://1.1.1.1/cdn-cgi/trace';
+    // Allow shim to do direct fallback so we always have a responsive listener
+    if (!env.BP_SOCKS_DIRECT_FALLBACK) env.BP_SOCKS_DIRECT_FALLBACK = '1';
     const singBoxBin = resolveSingBoxBinary();
     if (singBoxBin) env.SINGBOX_BIN = singBoxBin;
+
+    // Log resolution diagnostics
+    console.log('[bp] cwd=', process.cwd());
+    console.log('[bp] resourcesPath=', process.resourcesPath);
+    console.log('[bp] backend bin=', bin);
+    console.log('[bp] warp-plus bin=', warpPlusBin || '(none)');
+    if (process.platform === 'darwin' && warpPlusBin) {
+      try {
+        const cp = require('child_process');
+        const { status } = cp.spawnSync('xattr', ['-p', 'com.apple.quarantine', warpPlusBin], { stdio: 'ignore' });
+        if (status === 0) {
+          console.warn('[bp] warp-plus has quarantine attribute. If execution fails, run: xattr -d com.apple.quarantine', warpPlusBin);
+        }
+      } catch {}
+    }
+    console.log('[bp] sing-box bin=', singBoxBin || '(none)');
+    console.log('[bp] env overrides: WARPPLUS_IPV4=', env.WARPPLUS_IPV4, ' WARPPLUS_VERBOSE=', env.WARPPLUS_VERBOSE, ' BP_SOCKS_DIRECT_FALLBACK=', env.BP_SOCKS_DIRECT_FALLBACK);
+
     backendProc = spawn(bin, ['-addr', '127.0.0.1:4765'], { stdio: 'inherit', env });
-    backendProc.on('exit', () => { backendProc = null; });
+    backendProc.on('exit', (code, signal) => {
+      console.log('[bp] backend exit code=', code, 'signal=', signal);
+      backendProc = null;
+    });
   } catch (e) {
     console.error('Failed to spawn backend:', e);
   }
@@ -208,6 +231,22 @@ ipcMain.handle('bp-proxy-test', async (_evt, bind?: string) => {
   } catch (e:any) {
     return { error: e?.message || 'proxy test failed' };
   }
+});
+
+// Simple TCP probe to confirm a listening socket exists before flipping UI state
+ipcMain.handle('bp-probe-port', async (_evt, bind?: string) => {
+  const net = require('net');
+  const addr = bind || '127.0.0.1:8086';
+  const [host, portStr] = addr.split(':');
+  const port = parseInt(portStr || '8086', 10);
+  return new Promise((resolve) => {
+    const sock = net.connect({ host, port, timeout: 800 }, () => {
+      try { sock.end(); } catch {}
+      resolve({ listening: true });
+    });
+    sock.on('error', () => { resolve({ listening: false }); });
+    sock.on('timeout', () => { try { sock.destroy(); } catch {}; resolve({ listening: false }); });
+  });
 });
 
 ipcMain.handle('bp-identity', async () => {

@@ -21,3 +21,13 @@ export async function bpDisconnect() {
   // @ts-ignore
   return window.electron.disconnect();
 }
+
+export async function bpProxyTest(bind?: string) {
+  // @ts-ignore
+  return window.electron.proxyTest(bind);
+}
+
+export async function bpProbePort(bind?: string) {
+  // @ts-ignore
+  return window.electron.probePort(bind);
+}

@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electron', {
   connect: (payload: any) => ipcRenderer.invoke('bp-connect', payload),
   disconnect: () => ipcRenderer.invoke('bp-disconnect'),
   proxyTest: (bind?: string) => ipcRenderer.invoke('bp-proxy-test', bind),
+  probePort: (bind?: string) => ipcRenderer.invoke('bp-probe-port', bind),
   status: () => ipcRenderer.invoke('bp-status'),
   diag: () => ipcRenderer.invoke('bp-diag'),
   identity: () => ipcRenderer.invoke('bp-identity'),
