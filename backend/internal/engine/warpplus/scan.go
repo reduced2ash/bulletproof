@@ -3,6 +3,7 @@ package warpplus
 import (
     "bufio"
     "context"
+    "os"
     "os/exec"
     "regexp"
     "runtime"
@@ -19,6 +20,10 @@ var reScan = regexp.MustCompile(`(?m)^([0-9\.]+:[0-9]+)(?:\s+(\d+))?$`)
 // Note: This relies on warp-plus exposing a scan mode. If not available,
 // callers can ignore errors and fall back to user-provided endpoints.
 func Scan(ctx context.Context, bin string) ([]Endpoint, error) {
+    if bin == "" {
+        // Prefer env if provided (same behavior as Engine default)
+        if env := os.Getenv("WARPPLUS_BIN"); env != "" { bin = env }
+    }
     if bin == "" {
         if runtime.GOOS == "windows" { bin = "warp-plus.exe" } else { bin = "warp-plus" }
     }
@@ -39,4 +44,3 @@ func Scan(ctx context.Context, bin string) ([]Endpoint, error) {
     }
     return eps, nil
 }
-

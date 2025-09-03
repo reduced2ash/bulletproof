@@ -167,10 +167,10 @@ func (h *httpAPI) diag(w http.ResponseWriter, r *http.Request) {
     socks := "127.0.0.1:8086"
     if st.Bind != "" { socks = st.Bind }
     listening := probeTCP(socks, 350*time.Millisecond)
-    // also probe warp-plus internal bind if using shim (default 18086 on same host)
+    // also probe warp-plus internal bind if using shim (canonical 8086 on same host)
     warpBind := ""
     if host, _, err := net.SplitHostPort(socks); err == nil {
-        warpBind = net.JoinHostPort(host, "18086")
+        warpBind = net.JoinHostPort(host, "8086")
     }
     warpUp := false
     if warpBind != "" { warpUp = probeTCP(warpBind, 250*time.Millisecond) }

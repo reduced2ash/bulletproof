@@ -32,7 +32,8 @@ func (p *provider) Name() string { return "psiphon" }
 func (p *provider) Connect(req core.ConnectRequest) error {
     stateDir := req.Options["stateDir"]
     publicBind := bindFrom(req)
-    warpBind := altBind(publicBind, 18086)
+    // Canonical warp-plus SOCKS is 127.0.0.1:8086; avoid publicBind=8086
+    warpBind := altBind("127.0.0.1:8086", 8086)
     baseCfg := warpplus.Config{
         Bin:      req.Options["bin"],
         Key:      req.Options["key"],
@@ -145,7 +146,7 @@ func endpointFrom(req core.ConnectRequest) string {
 
 func bindFrom(req core.ConnectRequest) string {
     if b := req.Options["bind"]; b != "" { return b }
-    return "127.0.0.1:8086"
+    return "127.0.0.1:8087"
 }
 
 func firstNonEmpty(values ...string) string {
