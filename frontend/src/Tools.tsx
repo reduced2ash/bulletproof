@@ -72,8 +72,8 @@ const NetworkScanner = () => (
   </div>
 );
 
-const ProxyTest = () => {
-  const [bind, setBind] = useState('127.0.0.1:8086');
+const ProxyTest: React.FC<{ initialBind?: string }> = ({ initialBind }) => {
+  const [bind, setBind] = useState(initialBind || '127.0.0.1:8086');
   const [res, setRes] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const run = async () => {
@@ -83,6 +83,20 @@ const ProxyTest = () => {
     setRes(out);
     setLoading(false);
   };
+  useEffect(() => {
+    if (initialBind) setBind(initialBind);
+    else {
+      // Try to read current bind from backend
+      (async () => {
+        try {
+          // @ts-ignore
+          const st = await window.electron.status();
+          if (st?.bind) setBind(st.bind);
+        } catch {}
+      })();
+    }
+  }, [initialBind]);
+
   return (
     <div className="tool-card">
       <div className="tool-header">
@@ -130,12 +144,12 @@ const Diagnostics = () => {
   );
 };
 
-export default function Tools() {
+export default function Tools({ initialBind }: { initialBind?: string }) {
   return (
     <div className="tools-stack">
       <PingTest />
       <SpeedTest />
-      <ProxyTest />
+      <ProxyTest initialBind={initialBind} />
       <Diagnostics />
       <NetworkScanner />
     </div>

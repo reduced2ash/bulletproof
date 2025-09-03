@@ -34,11 +34,14 @@ func (p *provider) Name() string { return "warp" }
 func (p *provider) Connect(req core.ConnectRequest) error {
     stateDir := req.Options["stateDir"]
     // Resolve a stable, available public bind (persist across runs). Use req.Options["bind"]
-    // if provided; otherwise try last persisted bind, then scan 8086-8090.
+    // if provided; otherwise try last persisted bind, then scan 8087-8090.
+    // We intentionally avoid 8086 here because the bundled warp-plus prefers 127.0.0.1:8086
+    // for its internal SOCKS listener across versions.
     publicBind, err := choosePublicBind(stateDir, bindFrom(req))
     if err != nil { return err }
-    // where warp-plus actually listens; avoid collision with publicBind
-    warpBind := altBind(publicBind, 18086)
+    // where warp-plus actually listens; many builds ignore --bind and stick to 127.0.0.1:8086.
+    // Use the canonical port so readiness checks work and avoid collisions by not using 8086 for publicBind.
+    warpBind := altBind("127.0.0.1:8086", 8086)
 
     baseCfg := warpplus.Config{
         Bin:      req.Options["bin"],
@@ -111,6 +114,8 @@ func (p *provider) Connect(req core.ConnectRequest) error {
         }
         // Once warp-plus SOCKS is up, update status to reflect ready.
         if p.eng != nil {
+            // In parallel, detect early handshake success to surface better status while SOCKS warms.
+            go detectHandshake(filepath.Join(stateDir, "warp-plus.log"), &p.st)
             if err := waitPort(warpBind, 3*time.Minute); err == nil {
                 p.st.Message = "connected (warp active)"
             }
@@ -156,13 +161,13 @@ func endpointFrom(req core.ConnectRequest) string {
 
 func bindFrom(req core.ConnectRequest) string {
     if b := req.Options["bind"]; b != "" { return b }
-    return "127.0.0.1:8086"
+    return "127.0.0.1:8087"
 }
 
 // choosePublicBind selects a bind address, preferring:
-// 1) explicit requested bind if provided and available;
-// 2) last persisted bind from state if available;
-// 3) first free port in 8086..8090 on localhost.
+// 1) explicit requested bind if provided and available (excluding 8086);
+// 2) last persisted bind from state if available (excluding 8086);
+// 3) first free port in 8087..8090 on localhost.
 func choosePublicBind(stateDir string, requested string) (string, error) {
     // helper to test listen
     tryListen := func(addr string) bool {
@@ -172,20 +177,20 @@ func choosePublicBind(stateDir string, requested string) (string, error) {
         return true
     }
     // 1) requested
-    if requested != "" && tryListen(requested) {
+    if requested != "" && !strings.HasSuffix(requested, ":8086") && tryListen(requested) {
         return requested, nil
     }
     // 2) last persisted
-    if last, ok := loadBind(stateDir); ok && tryListen(last) {
+    if last, ok := loadBind(stateDir); ok && !strings.HasSuffix(last, ":8086") && tryListen(last) {
         return last, nil
     }
     // 3) scan range
     host := "127.0.0.1"
-    for p := 8086; p <= 8090; p++ {
+    for p := 8087; p <= 8090; p++ {
         addr := net.JoinHostPort(host, strconv.Itoa(p))
         if tryListen(addr) { return addr, nil }
     }
-    return "", errors.New("no available port in 8086-8090")
+    return "", errors.New("no available port in 8087-8090")
 }
 
 func bindPath(stateDir string) string { return filepath.Join(stateDir, "socks-bind.json") }
@@ -295,4 +300,18 @@ func waitPort(addr string, timeout time.Duration) error {
         time.Sleep(250 * time.Millisecond)
     }
     return fmt.Errorf("timeout waiting for %s", addr)
+}
+
+// detectHandshake polls the warp-plus log for "handshake complete" to improve user-facing status
+// while the upstream SOCKS may still be warming up or gated by connectivity tests.
+func detectHandshake(logPath string, st *core.Status) {
+    deadline := time.Now().Add(2 * time.Minute)
+    for time.Now().Before(deadline) {
+        b, err := os.ReadFile(logPath)
+        if err == nil && strings.Contains(string(b), "handshake complete") {
+            st.Message = "connected (warp handshake ok; warming)"
+            return
+        }
+        time.Sleep(1500 * time.Millisecond)
+    }
 }

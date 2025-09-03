@@ -33,10 +33,11 @@ func (p *provider) Name() string { return "gool" }
 
 func (p *provider) Connect(req core.ConnectRequest) error {
     stateDir := req.Options["stateDir"]
-    // Choose/persist bind similar to warp provider
+    // Choose/persist bind similar to warp provider; avoid 8086 to prevent collision
     publicBind, err := choosePublicBind(stateDir, bindFrom(req))
     if err != nil { return err }
-    warpBind := altBind(publicBind, 18086)
+    // Canonical warp-plus SOCKS is 127.0.0.1:8086
+    warpBind := altBind("127.0.0.1:8086", 8086)
     baseCfg := warpplus.Config{
         Bin:      req.Options["bin"],
         Key:      req.Options["key"],
@@ -143,7 +144,7 @@ func endpointFrom(req core.ConnectRequest) string {
 
 func bindFrom(req core.ConnectRequest) string {
     if b := req.Options["bind"]; b != "" { return b }
-    return "127.0.0.1:8086"
+    return "127.0.0.1:8087"
 }
 
 // Reuse bind persistence/selection helpers from warp provider by duplicating minimal logic here
@@ -154,14 +155,14 @@ func choosePublicBind(stateDir string, requested string) (string, error) {
         _ = ln.Close()
         return true
     }
-    if requested != "" && tryListen(requested) { return requested, nil }
-    if last, ok := loadBind(stateDir); ok && tryListen(last) { return last, nil }
+    if requested != "" && !strings.HasSuffix(requested, ":8086") && tryListen(requested) { return requested, nil }
+    if last, ok := loadBind(stateDir); ok && !strings.HasSuffix(last, ":8086") && tryListen(last) { return last, nil }
     host := "127.0.0.1"
-    for p := 8086; p <= 8090; p++ {
+    for p := 8087; p <= 8090; p++ {
         addr := net.JoinHostPort(host, strconv.Itoa(p))
         if tryListen(addr) { return addr, nil }
     }
-    return "", errors.New("no available port in 8086-8090")
+    return "", errors.New("no available port in 8087-8090")
 }
 
 func bindPath(stateDir string) string { return filepath.Join(stateDir, "socks-bind.json") }

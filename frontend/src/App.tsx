@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Settings from './Settings';
 import Tools from './Tools';
 import Navbar from './Navbar';
@@ -6,11 +6,70 @@ import { bpConnect, bpDisconnect, ConnectPayload, bpProxyTest, bpProbePort } fro
 
 type Provider = 'warp' | 'gool' | 'psiphon';
 
-const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPayload }) => {
+type MainProps = { connected: boolean; connecting: boolean; message: string; bind: string; onToggle: () => void };
+const MainPage: React.FC<MainProps> = ({ connected, connecting, message, bind, onToggle }) => (
+  <main className="app-main">
+    <div
+      className={`toggle-switch ${connected ? 'on' : 'off'} ${connecting ? 'loading' : ''}`}
+      onClick={() => { if (!connecting) onToggle(); }}
+    >
+      <div className="toggle-handle" />
+    </div>
+    <div className="status-text">
+      {connecting ? (
+        <span className="loading-row"><span className="spinner" />Connecting…</span>
+      ) : (
+        <span>{message || (connected ? (bind ? `Connected · ${bind}` : 'Connected') : 'Not Connected')}</span>
+      )}
+    </div>
+  </main>
+);
+
+const App: React.FC = () => {
+  const [activePage, setActivePage] = useState<'main' | 'tools' | 'settings'>('main');
+
+  // Lifted settings state
+  const [provider, setProvider] = useState<Provider>('warp');
+  const [integration, setIntegration] = useState<'direct'|'pac'|'tun'>('direct');
+  // Leave empty by default so backend auto-selects endpoints
+  const [server, setServer] = useState<string>('');
+  const [port, setPort] = useState<number>(0);
+  const [warpKey, setWarpKey] = useState<string>('');
+  const [exitCountry, setExitCountry] = useState<string>('US');
+  const [license, setLicense] = useState<'free' | 'warp+'>('free');
+  // Connection state lifted so it survives navigation
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [message, setMessage] = useState<string>('');
   const [bind, setBind] = useState<string>('');
+
+  const buildPayload = (): ConnectPayload => ({
+    provider,
+    server: server || undefined,
+    port: port || undefined,
+    exitCountry,
+    // Do not send bind; backend selects/persists an available one and returns it in status
+    options: { key: warpKey || undefined, integration },
+  });
+
+  // Status polling to keep UI updated (e.g., "warp warming" -> "warp active")
+  const refreshStatus = useCallback(async () => {
+    try {
+      // @ts-ignore
+      const st = await window.electron.status();
+      if (st && !st.error) {
+        setConnected(!!st.connected);
+        if (st.bind || st.Bind) setBind(st.bind || st.Bind);
+        if (st.message) setMessage(st.message);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { refreshStatus(); }, [refreshStatus]);
+  useEffect(() => {
+    const id = setInterval(() => { refreshStatus(); }, 2000);
+    return () => clearInterval(id);
+  }, [refreshStatus]);
 
   const pollUntilConnected = async (timeoutMs = 75000) => {
     const start = Date.now();
@@ -23,7 +82,7 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
     return null;
   };
 
-  const handleToggle = async () => {
+  const handleToggle = useCallback(async () => {
     if (connecting) return;
     try {
       if (!connected) {
@@ -39,12 +98,10 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
         if (st) {
           const chosenBind = st?.bind || st?.Bind || '';
           if (chosenBind) setBind(chosenBind);
-          // Probe listener quickly via TCP, then perform a tiny HTTP fetch via socks
           try {
             const probe = await bpProbePort(chosenBind);
             if (!probe?.listening) {
               setMessage('Port not listening yet…');
-              // one more short wait cycle
               await new Promise(r => setTimeout(r, 800));
             }
           } catch {}
@@ -77,53 +134,12 @@ const MainPage: React.FC<{ buildPayload: () => ConnectPayload }> = ({ buildPaylo
       setConnecting(false);
       setMessage(e?.message || 'Error');
     }
-  };
-
-  return (
-    <main className="app-main">
-      <div
-        className={`toggle-switch ${connected ? 'on' : 'off'} ${connecting ? 'loading' : ''}`}
-        onClick={handleToggle}
-      >
-        <div className="toggle-handle" />
-      </div>
-      <div className="status-text">
-        {connecting ? (
-          <span className="loading-row"><span className="spinner" />Connecting…</span>
-        ) : (
-          <span>{message || (connected ? (bind ? `Connected · ${bind}` : 'Connected') : 'Not Connected')}</span>
-        )}
-      </div>
-    </main>
-  );
-};
-
-const App: React.FC = () => {
-  const [activePage, setActivePage] = useState<'main' | 'tools' | 'settings'>('main');
-
-  // Lifted settings state
-  const [provider, setProvider] = useState<Provider>('warp');
-  const [integration, setIntegration] = useState<'direct'|'pac'|'tun'>('direct');
-  // Leave empty by default so backend auto-selects endpoints
-  const [server, setServer] = useState<string>('');
-  const [port, setPort] = useState<number>(0);
-  const [warpKey, setWarpKey] = useState<string>('');
-  const [exitCountry, setExitCountry] = useState<string>('US');
-  const [license, setLicense] = useState<'free' | 'warp+'>('free');
-
-  const buildPayload = (): ConnectPayload => ({
-    provider,
-    server: server || undefined,
-    port: port || undefined,
-    exitCountry,
-    // Do not send bind; backend selects/persists an available one and returns it in status
-    options: { key: warpKey || undefined, integration },
-  });
+  }, [connecting, connected, buildPayload]);
 
   const renderPage = () => {
     switch (activePage) {
       case 'tools':
-        return <Tools />;
+        return <Tools initialBind={bind} />;
       case 'settings':
         return (
           <Settings
@@ -144,7 +160,15 @@ const App: React.FC = () => {
           />
         );
       default:
-        return <MainPage buildPayload={buildPayload} />;
+        return (
+          <MainPage
+            connected={connected}
+            connecting={connecting}
+            message={message}
+            bind={bind}
+            onToggle={handleToggle}
+          />
+        );
     }
   };
 

@@ -98,14 +98,24 @@ function startBackend() {
     console.log('[bp] resourcesPath=', process.resourcesPath);
     console.log('[bp] backend bin=', bin);
     console.log('[bp] warp-plus bin=', warpPlusBin || '(none)');
-    if (process.platform === 'darwin' && warpPlusBin) {
-      try {
-        const cp = require('child_process');
-        const { status } = cp.spawnSync('xattr', ['-p', 'com.apple.quarantine', warpPlusBin], { stdio: 'ignore' });
-        if (status === 0) {
-          console.warn('[bp] warp-plus has quarantine attribute. If execution fails, run: xattr -d com.apple.quarantine', warpPlusBin);
-        }
-      } catch {}
+    // Attempt to lift quarantine and ensure +x bits for bundled helpers
+    if (warpPlusBin && process.platform !== 'win32') {
+      try { fs.chmodSync(warpPlusBin, 0o755); } catch {}
+      if (process.platform === 'darwin') {
+        try {
+          const cp = require('child_process');
+          cp.spawnSync('xattr', ['-d', 'com.apple.quarantine', warpPlusBin], { stdio: 'ignore' });
+        } catch {}
+      }
+    }
+    if (singBoxBin && process.platform !== 'win32') {
+      try { fs.chmodSync(singBoxBin, 0o755); } catch {}
+      if (process.platform === 'darwin') {
+        try {
+          const cp = require('child_process');
+          cp.spawnSync('xattr', ['-d', 'com.apple.quarantine', singBoxBin], { stdio: 'ignore' });
+        } catch {}
+      }
     }
     console.log('[bp] sing-box bin=', singBoxBin || '(none)');
     console.log('[bp] env overrides: WARPPLUS_IPV4=', env.WARPPLUS_IPV4, ' WARPPLUS_VERBOSE=', env.WARPPLUS_VERBOSE, ' BP_SOCKS_DIRECT_FALLBACK=', env.BP_SOCKS_DIRECT_FALLBACK);
