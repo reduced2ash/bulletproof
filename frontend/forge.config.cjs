@@ -3,10 +3,16 @@ const { WebpackPlugin } = require('@electron-forge/plugin-webpack');
 
 module.exports = {
   packagerConfig: {
+    // Base icon path (Electron Packager will append platform extension: .icns on macOS, .ico on Windows)
+    icon: path.resolve(__dirname, 'src', 'assets', 'icon'),
     extraResources: [
       {
         from: path.resolve(__dirname, 'resources', 'bin'),
         to: 'bin',
+      },
+      {
+        from: path.resolve(__dirname, 'src', 'assets'),
+        to: 'assets',
       },
     ],
   },

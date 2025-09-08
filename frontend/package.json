@@ -8,9 +8,11 @@
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
-    "lint": "echo \"(optional)\""
+    "lint": "echo \"(optional)\"",
+    "build:icons": "node scripts/generate-icons.js"
   },
   "devDependencies": {
+    "icon-gen": "^2.0.0",
     "@electron-forge/cli": "^6.4.0",
     "@electron-forge/plugin-webpack": "^6.4.0",
     "@types/ping": "^0.4.4",

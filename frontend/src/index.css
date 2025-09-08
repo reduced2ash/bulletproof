@@ -279,6 +279,12 @@ html, body, #root {
   gap: 12px;
 }
 
+.settings-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
 .settings-content {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -379,6 +385,18 @@ pre {
 .tool-actions { display: flex; gap: 10px; }
 .tool-section-title { font-weight: 700; font-size: 0.95rem; margin: 0; color: var(--muted); }
 .tool-output { font-size: 0.9rem; max-height: 180px; overflow: auto; border-radius: 10px; border: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.35); padding: 10px; }
+
+.subtitle { color: var(--muted); font-size: 0.86rem; margin: 0; }
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 999px; font-weight: 700; font-size: 0.78rem; border: 1px solid rgba(255,255,255,0.12); background: rgba(255,255,255,0.06); }
+.badge.ok { background: linear-gradient(180deg, rgba(34,197,94,0.15), rgba(255,255,255,0.06)); border-color: rgba(34,197,94,0.5); }
+.badge.warn { background: linear-gradient(180deg, rgba(245,158,11,0.15), rgba(255,255,255,0.06)); border-color: rgba(245,158,11,0.5); }
+.badge.err { background: linear-gradient(180deg, rgba(239,68,68,0.15), rgba(255,255,255,0.06)); border-color: rgba(239,68,68,0.5); }
+
+.btn-danger { background: linear-gradient(90deg, #ef4444, #dc2626); color: #fff; border-color: rgba(0,0,0,0.25); box-shadow: 0 10px 24px rgba(239,68,68,0.25); }
+.btn-secondary { background: rgba(255,255,255,0.06); color: var(--text); }
+.kv { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 0.88rem; }
+.kv .k { color: var(--muted); font-weight: 700; }
+.kv .v { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header-actions { display: inline-flex; align-items: center; gap: 8px; position: relative; }
 .events-btn { width: 36px; height: 36px; display: inline-grid; place-items: center; }
 .events-dropdown { position: absolute; right: 0; top: calc(100% + 8px); width: 320px; max-width: calc(100vw - 24px); max-height: 260px; overflow: hidden; background: rgba(14,16,24,0.96); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.45); z-index: 40; }
