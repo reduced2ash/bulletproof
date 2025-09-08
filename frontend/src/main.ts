@@ -394,14 +394,45 @@ function createTray() {
   });
 }
 
+async function captureScreenshots(win: BrowserWindow) {
+  const pages = ['main', 'tools', 'settings'];
+  const path = require('path');
+  const fs = require('fs');
+  const outDir = path.join(process.cwd(), '..', 'docs');
+  try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
+  for (const p of pages) {
+    const url = `${MAIN_WINDOW_WEBPACK_ENTRY}?demo=1&page=${encodeURIComponent(p)}`;
+    await win.loadURL(url);
+    await new Promise(r => setTimeout(r, 600));
+    const img = await win.webContents.capturePage();
+    const file = path.join(outDir, `screenshot-${p}.png`);
+    fs.writeFileSync(file, img.toPNG());
+    console.log('[bp] wrote', file);
+  }
+}
+
 app.on('ready', async () => {
-  // Start backend in the background and give it a moment to become healthy
-  console.log('Starting backend…');
-  startBackend();
-  waitForHealth(5000).then(() => console.log('Backend healthy')).catch(() => console.warn('Backend health check timed out'));
+  const screenshotMode = process.env.BP_SCREENSHOT === '1' || process.env.BP_SCREENSHOT === 'true';
+  if (!screenshotMode) {
+    // Start backend in the background and give it a moment to become healthy
+    console.log('Starting backend…');
+    startBackend();
+    waitForHealth(5000).then(() => console.log('Backend healthy')).catch(() => console.warn('Backend health check timed out'));
+  }
 
   createWindow();
-  createTray();
+  if (!screenshotMode) createTray();
+
+  if (screenshotMode && mainWindow) {
+    try {
+      await captureScreenshots(mainWindow);
+    } catch (e) {
+      console.error('screenshot capture failed:', e);
+    }
+    app.quitting = true as any;
+    app.quit();
+    return;
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

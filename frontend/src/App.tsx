@@ -145,6 +145,8 @@ const MainPage: React.FC<MainProps> = ({
 );
 
 const App: React.FC = () => {
+  const isDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1';
+  const demoPage = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('page') || 'main';
   const [activePage, setActivePage] = useState<'main' | 'tools' | 'settings'>('main');
 
   // Lifted settings state
@@ -157,15 +159,15 @@ const App: React.FC = () => {
   const [exitCountry, setExitCountry] = useState<string>('US');
   const [license, setLicense] = useState<'free' | 'warp+'>('free');
   // Connection state lifted so it survives navigation
-  const [connected, setConnected] = useState(false);
+  const [connected, setConnected] = useState(isDemo ? true : false);
   const [connecting, setConnecting] = useState(false);
-  const [message, setMessage] = useState<string>('');
-  const [bind, setBind] = useState<string>('');
+  const [message, setMessage] = useState<string>(isDemo ? 'Connected (demo)' : '');
+  const [bind, setBind] = useState<string>(isDemo ? '127.0.0.1:8087' : '');
   const [pacEnabled, setPacEnabled] = useState<boolean>(false);
   const [tunEnabled, setTunEnabled] = useState<boolean>(false);
   const [listening, setListening] = useState<boolean>(false);
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
-  const [ipInfo, setIpInfo] = useState<{ ip?: string; country?: string; isp?: string; asn?: string } | null>(null);
+  const [latencyMs, setLatencyMs] = useState<number | null>(isDemo ? 23 : null);
+  const [ipInfo, setIpInfo] = useState<{ ip?: string; country?: string; isp?: string; asn?: string } | null>(isDemo ? { ip: '203.0.113.42', country: 'US', isp: 'Example ISP', asn: 'AS64500' } : null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [events, setEvents] = useState<Array<{ t: number; text: string; kind?: 'info'|'success'|'error' }>>([]);
   const [toast, setToast] = useState<{ text: string; kind?: 'info'|'success'|'error' } | null>(null);
@@ -228,14 +230,16 @@ const App: React.FC = () => {
     } catch {}
   }, []);
 
-  useEffect(() => { refreshStatus(); }, [refreshStatus]);
+  useEffect(() => { if (!isDemo) refreshStatus(); }, [refreshStatus]);
   useEffect(() => {
+    if (isDemo) return;
     const id = setInterval(() => { refreshStatus(); }, 2000);
     return () => clearInterval(id);
-  }, [refreshStatus]);
+  }, [refreshStatus, isDemo]);
 
   // Probe port and latency periodically when connected
   useEffect(() => {
+    if (isDemo) return;
     let timer: any;
     const tick = async () => {
       try {
@@ -271,7 +275,7 @@ const App: React.FC = () => {
       setIpInfo(null);
     }
     return () => { if (timer) clearInterval(timer); };
-  }, [connected, bind]);
+  }, [connected, bind, isDemo]);
 
   const pollUntilConnected = async (timeoutMs = 75000) => {
     const start = Date.now();
@@ -351,6 +355,16 @@ const App: React.FC = () => {
       pushEvent(e?.message || 'Unknown error', 'error');
     }
   }, [connecting, connected, buildPayload]);
+
+  useEffect(() => {
+    if (isDemo) {
+      if (demoPage === 'tools' || demoPage === 'settings' || demoPage === 'main') setActivePage(demoPage as any);
+      setPacEnabled(true);
+      setTunEnabled(true);
+      pushEvent('Connected · 127.0.0.1:8087', 'success');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const renderPage = () => {
     switch (activePage) {
