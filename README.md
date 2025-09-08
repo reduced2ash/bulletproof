@@ -167,7 +167,7 @@ frontend/resources/bin/
 
 ## Screenshots
 
-Place screenshots in `docs/` (paths below are placeholders):
+Generated demos (run `npm run shot` inside `frontend/`):
 
 ![Main UI](docs/screenshot-main.png)
 ![Settings](docs/screenshot-settings.png)
