@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            plat: darwin
+          - os: windows-latest
+            plat: win32
+          - os: ubuntu-latest
+            plat: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+
+      - name: Install frontend deps
+        run: |
+          cd frontend
+          npm ci
+
+      - name: Install Linux packaging deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm fakeroot
+
+      - name: Build backend binary
+        shell: bash
+        run: |
+          # Determine arch label used by Electron in resources path
+          if [[ "$RUNNER_OS" == "Windows" ]]; then BIN=bulletproofd.exe; ARCH=x64; GOOS=windows; elif [[ "$RUNNER_OS" == "macOS" ]]; then BIN=bulletproofd; ARCH=$(uname -m | grep -qi arm && echo arm64 || echo x64); GOOS=darwin; else BIN=bulletproofd; ARCH=x64; GOOS=linux; fi
+          echo "Building backend for $GOOS/$ARCH -> $BIN"
+          go build -C backend -o ../backend/$BIN ./cmd/bulletproofd
+          mkdir -p frontend/resources/backend/${{ matrix.plat }}-$ARCH
+          cp backend/$BIN frontend/resources/backend/${{ matrix.plat }}-$ARCH/
+
+      - name: Package app
+        run: |
+          cd frontend
+          npm run make
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            frontend/out/make/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

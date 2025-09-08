@@ -32,7 +32,16 @@ function resolveBackendBinary(): string {
   const path = require('path');
   const isWin = process.platform === 'win32';
   const bin = isWin ? 'bulletproofd.exe' : 'bulletproofd';
-  // dev: project root is one level up from frontend; binary under ../backend
+  // Prefer packaged resource when available
+  try {
+    const plat = process.platform; // darwin|win32|linux
+    const arch = process.arch;     // x64|arm64
+    const resRoot = process.resourcesPath || process.cwd();
+    const candidate = path.join(resRoot, 'backend', `${plat}-${arch}`, bin);
+    const fs = require('fs');
+    if (fs.existsSync(candidate)) return candidate;
+  } catch {}
+  // Dev fallback: project root is one level up from frontend; binary under ../backend
   return path.join(process.cwd(), '..', 'backend', bin);
 }
 
