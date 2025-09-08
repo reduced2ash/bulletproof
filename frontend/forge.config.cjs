@@ -1,5 +1,9 @@
 const path = require('path');
 const { WebpackPlugin } = require('@electron-forge/plugin-webpack');
+const { MakerZIP } = require('@electron-forge/maker-zip');
+const { MakerDeb } = require('@electron-forge/maker-deb');
+const { MakerRpm } = require('@electron-forge/maker-rpm');
+const { MakerSquirrel } = require('@electron-forge/maker-squirrel');
 
 module.exports = {
   packagerConfig: {
@@ -21,6 +25,12 @@ module.exports = {
     ],
   },
   rebuildConfig: {},
+  makers: [
+    new MakerSquirrel({}), // Windows
+    new MakerZIP({}, ['darwin', 'linux']), // Zip for macOS and Linux
+    new MakerRpm({}), // Linux RPM
+    new MakerDeb({}), // Linux DEB
+  ],
   plugins: [
     new WebpackPlugin({
       mainConfig: path.resolve(__dirname, 'webpack.main.config.cjs'),
