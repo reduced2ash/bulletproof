@@ -17,6 +17,20 @@ The app window is fixed size with a large on/off toggle (grey when off, bright w
 - Backend API bind: `127.0.0.1:4765`
 
 
+## Quick Preview
+
+<div align="center">
+  <img alt="Main UI" src="docs/screenshot-main.png" width="260" />
+  <img alt="Settings" src="docs/screenshot-settings.png" width="260" />
+  <img alt="Tools" src="docs/screenshot-tools.png" width="260" />
+  <br />
+  <sub>Run <code>npm run shot</code> in <code>frontend/</code> to regenerate.</sub>
+  <br />
+  <br />
+  
+</div>
+
+
 ## Features
 
 - WARP/WARP+ with optional license upgrade, plus Gool and Psiphon modes
@@ -167,11 +181,7 @@ frontend/resources/bin/
 
 ## Screenshots
 
-Generated demos (run `npm run shot` inside `frontend/`):
-
-![Main UI](docs/screenshot-main.png)
-![Settings](docs/screenshot-settings.png)
-![Tools](docs/screenshot-tools.png)
+Generated demos (run `npm run shot` inside `frontend/`). The PNGs live in `docs/` and are thumbnailed above in Quick Preview.
 
 
 ## HTTP API (Backend)
