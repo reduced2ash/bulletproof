@@ -13,6 +13,10 @@
     "shot": "BP_SCREENSHOT=1 electron-forge start"
   },
   "devDependencies": {
+    "@electron-forge/maker-deb": "^6.4.0",
+    "@electron-forge/maker-rpm": "^6.4.0",
+    "@electron-forge/maker-squirrel": "^6.4.0",
+    "@electron-forge/maker-zip": "^6.4.0",
     "icon-gen": "^2.0.0",
     "@electron-forge/cli": "^6.4.0",
     "@electron-forge/plugin-webpack": "^6.4.0",
