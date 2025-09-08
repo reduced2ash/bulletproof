@@ -161,6 +161,8 @@ export default function Settings({
           <button className="btn btn-danger" onClick={resetIdentity}>Reset Identity</button>
         </div>
       </div>
+
+      {/* About card removed per request */}
     </div>
   );
 }
