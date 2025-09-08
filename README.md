@@ -1,5 +1,7 @@
 # Bulletproof — Cross‑Platform Desktop VPN Client
 
+<img alt="Bulletproof" src="frontend/src/assets/icon.png" width="180" />
+
 [![Electron](https://img.shields.io/badge/Electron-30-blue?logo=electron)](https://www.electronjs.org/)
 [![Node](https://img.shields.io/badge/Node-18%2B-green?logo=node.js)](https://nodejs.org/)
 [![Go](https://img.shields.io/badge/Go-1.22-blue?logo=go)](https://go.dev/)
@@ -113,6 +115,19 @@ cd frontend && npm run make
 ```
 
 Binaries for helpers must be present under `frontend/resources/bin/<platform>-<arch>/` so they are included in the packaged app.
+
+Icon setup:
+
+- Base logo: `frontend/src/assets/icon.png` (square; 1024×1024 recommended)
+- Generate platform icons before packaging:
+
+```bash
+cd frontend
+npm ci  # installs icon-gen
+npm run build:icons  # writes icon.icns and icon.ico next to icon.png
+```
+
+Electron Forge is configured to use `src/assets/icon` as the base icon; it will pick `.icns` on macOS and `.ico` on Windows. The PNG is also bundled and used for tray/dev.
 
 
 ## Configuration

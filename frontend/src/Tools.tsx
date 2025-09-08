@@ -3,24 +3,32 @@ import React, { useEffect, useState } from 'react';
 const PingTest = () => {
   const [host, setHost] = useState('google.com');
   const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
   const handlePing = async () => {
+    setLoading(true);
     // @ts-ignore
     const response = await window.electron.ping(host);
     setResult(response);
+    setLoading(false);
   };
 
   return (
     <div className="tool-card">
-      <div className="tool-header">
-        <h3>Ping Test</h3>
-        <div className="tool-actions">
-          <button className="btn btn-ghost" onClick={() => setResult(null)}>Clear</button>
-        </div>
+      <div className="tool-header" style={{ justifyContent: 'space-between' }}>
+        <h3>🛰️ Ping Test</h3>
+        {result && (
+          <div className="badge ok">
+            <span aria-hidden>⚡</span>
+            <span>{(result?.time ?? result?.avg ?? '?')} ms</span>
+          </div>
+        )}
       </div>
+      <p className="subtitle">Check reachability and round-trip time to a host.</p>
       <div className="input-row">
         <input type="text" value={host} onChange={(e) => setHost(e.target.value)} className="form-input" placeholder="Enter host e.g. google.com" />
-        <button onClick={handlePing} className="btn btn-amber">Ping</button>
+        <button onClick={handlePing} className="btn btn-amber" disabled={loading}>{loading ? 'Pinging…' : 'Ping'}</button>
+        <button className="btn btn-ghost" onClick={() => setResult(null)}>Clear</button>
       </div>
       {result && (
         <div className="tool-output">
@@ -45,9 +53,8 @@ const SpeedTest = () => {
 
   return (
     <div className="tool-card">
-      <div className="tool-header">
-        <h3>Speed Test</h3>
-      </div>
+      <div className="tool-header"><h3>⚡ Speed Test</h3></div>
+      <p className="subtitle">Measures download speed. Requires a valid speed-test token in app config.</p>
       <div className="tool-actions">
         <button onClick={handleSpeedTest} disabled={testing} className="btn btn-amber">
           {testing ? 'Testing…' : 'Run Speed Test'}
@@ -65,10 +72,11 @@ const SpeedTest = () => {
 
 const NetworkScanner = () => (
   <div className="tool-card">
-    <div className="tool-header">
-      <h3>Network Scanner</h3>
+    <div className="tool-header"><h3>🧭 Network Scanner</h3></div>
+    <p className="subtitle">Discover candidate endpoints (coming soon).</p>
+    <div className="tool-actions">
+      <button className="btn" disabled>Scan</button>
     </div>
-    <p className="tool-section-title">This feature is not yet implemented.</p>
   </div>
 );
 
@@ -131,11 +139,11 @@ const Diagnostics = () => {
   useEffect(() => { load(); }, []);
   return (
     <div className="tool-card">
-      <div className="tool-header">
-        <h3>Diagnostics</h3>
-        <div className="tool-actions">
-          <button className="btn btn-ghost" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
-        </div>
+      <div className="tool-header"><h3>🧪 Diagnostics</h3></div>
+      <p className="subtitle">Snapshot of current status, identity (sanitized), env and quick probes.</p>
+      <div className="tool-actions">
+        <button className="btn btn-amber" onClick={load} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</button>
+        <button className="btn" onClick={() => { try { navigator.clipboard.writeText(JSON.stringify(diag, null, 2)); } catch {} }}>Copy JSON</button>
       </div>
       <div className="tool-output">
         <pre>{JSON.stringify(diag, null, 2)}</pre>

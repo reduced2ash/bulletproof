@@ -278,11 +278,24 @@ ipcMain.handle('bp-identity-reset', async () => {
 });
 
 function createWindow() {
+  const devIconPath = path.join(process.cwd(), 'src', 'assets', 'icon.png');
+  const prodIconPath = path.join(process.resourcesPath || process.cwd(), 'assets', 'icon.png');
+  const iconPath = isDev ? devIconPath : prodIconPath;
+
+  // Set dock icon on macOS if available
+  if (process.platform === 'darwin') {
+    try {
+      const dockImg = nativeImage.createFromPath(iconPath);
+      if (!dockImg.isEmpty() && app.dock) app.dock.setIcon(dockImg);
+    } catch {}
+  }
+
   mainWindow = new BrowserWindow({
     width: 420,
     height: 720,
     resizable: false,
     backgroundColor: '#0b0b0c',
+    icon: iconPath,
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       nodeIntegration: false,
