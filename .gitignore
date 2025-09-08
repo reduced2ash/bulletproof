@@ -1,0 +1,41 @@
+# OS cruft
+.DS_Store
+
+# Environment
+.env
+.env.*
+
+# Logs
+*.log
+backend_run*.log
+
+# Build artifacts / binaries
+backend/bulletproofd
+backend/bulletproofd.exe
+backend/*.exe
+backend/*.dll
+backend/*.so
+backend/*.dylib
+
+# Node/Electron
+frontend/node_modules/
+frontend/.webpack/
+frontend/out/
+frontend/dist/
+frontend/make/
+*.asar
+
+# App state (do not commit user/device identities or runtime state)
+backend/state/
+frontend/state/
+state/
+**/warp_identity.json
+**/wgcf-identity.json
+**/socks-bind.json
+**/singbox.json
+**/warp-plus.log
+**/warp-plus*.log
+
+# Internal docs not for public repos
+AGENTS.md
+
