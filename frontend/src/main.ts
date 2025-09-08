@@ -277,6 +277,8 @@ ipcMain.handle('bp-identity-reset', async () => {
   }
 });
 
+// (no open-external handler)
+
 function createWindow() {
   const devIconPath = path.join(process.cwd(), 'src', 'assets', 'icon.png');
   const prodIconPath = path.join(process.resourcesPath || process.cwd(), 'assets', 'icon.png');

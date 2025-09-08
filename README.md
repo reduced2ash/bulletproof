@@ -8,13 +8,14 @@
 [![Platforms](https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows%20%7C%20Linux-888)](#)
 [![License](https://img.shields.io/badge/License-TBD-lightgrey)](#license)
 
-Bulletproof is a cross‑platform desktop VPN client with an Electron (TypeScript/React) UI and a Go backend that drives a custom WireGuard/WARP engine. It provides secure, encrypted connectivity via three provider modes (WARP/WARP+, Gool, Psiphon) and three integration options (Direct proxy, system‑wide PAC, or TUN via Sing‑Box).
+Bulletproof is a fast, privacy‑first desktop VPN for macOS, Windows, and Linux. Click once to secure your connection, pick an exit country, and get on with your day — no accounts required, no clutter, and no guesswork.
 
-The app window is fixed size with a large on/off toggle (grey when off, bright when on), concise status text, and a gear icon that opens Settings. It also includes built‑in utilities for network scan, ping, speed test, plus a tray menu with minimize‑to‑tray and auto‑start.
-
-- Providers: `warp`, `gool`, `psiphon`
-- Integration: `direct` (no system changes), `pac` (system‑wide proxy via PAC), `tun` (system TUN via Sing‑Box)
-- Backend API bind: `127.0.0.1:4765`
+Why Bulletproof
+- Simple: one big button, smart defaults, clear status.
+- Flexible: switch between WARP/WARP+, Gool, and Psiphon depending on your needs.
+- Full control: app‑only proxy, system proxy (PAC), or full‑device TUN mode.
+- Built‑in tools: ping, speed test, diagnostics — all in one place.
+- Privacy by design: everything runs locally; identities stay on your device.
 
 
 ## Quick Preview
@@ -31,17 +32,31 @@ The app window is fixed size with a large on/off toggle (grey when off, bright w
 </div>
 
 
-## Features
+## Highlights
 
-- WARP/WARP+ with optional license upgrade, plus Gool and Psiphon modes
-- Three integration modes: Direct SOCKS5, system‑wide PAC, or TUN interface
-- Status feedback: identity, connection state, active bind, PAC/TUN state
-- Utilities: endpoint scan (via engine), ping, speed test (token required)
-- Cross‑platform packaging via Electron Forge; Windows Squirrel updater
-- Tray support: minimize to tray, show app, start on boot, quick quit
+- Multiple networks: WARP/WARP+, Gool, Psiphon
+- Three ways to route: Direct (in‑app proxy), PAC (system‑wide), or TUN (full‑device)
+- Instant feedback: connection state, bind, exit country, PAC/TUN indicators
+- Useful tools: ping, proxy test, speed test, and diagnostics
+- Cross‑platform: macOS, Windows, Linux
+- Polished desktop experience: tray, start on boot, sensible defaults
+
+## Get Started
+
+- Download a release (coming soon) or build locally. To build now:
+  - Backend: `cd backend && go build -o bulletproofd ./cmd/bulletproofd`
+  - Frontend: `cd frontend && npm ci && npm start`
+- Pick a method (WARP/Gool/Psiphon), choose integration, and click Connect.
+- Optional: set an exit country or WARP+ license in Settings.
+
+## Privacy & Security
+
+- No accounts required; WARP identities are stored locally on your machine.
+- The backend binds to `127.0.0.1` and never exposes a public port.
+- You’re in control: enable/disable system proxy (PAC) or TUN at any time.
 
 
-## Architecture
+## Under the Hood (for Developers)
 
 - Frontend: Electron + React/TypeScript
   - Main process spawns the backend and exposes IPC for: connect, disconnect, status, diagnostics, ping, proxy test, etc.
@@ -182,6 +197,8 @@ frontend/resources/bin/
 ## Screenshots
 
 Generated demos (run `npm run shot` inside `frontend/`). The PNGs live in `docs/` and are thumbnailed above in Quick Preview.
+
+<!-- Contact section removed as requested -->
 
 
 ## HTTP API (Backend)
