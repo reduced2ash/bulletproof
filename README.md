@@ -284,3 +284,20 @@ This repository currently does not include a license file. If you intend to open
 ---
 
 For backend‑only details, see `README_BACKEND.md`.
+
+## Acknowledgements
+
+We’re grateful to the open‑source projects and communities that make Bulletproof possible:
+
+- `warp-plus` tunnel helper — upstream authors and maintainers of the Warp+ engine used to establish encrypted tunnels.
+- `sing-box` — high‑quality networking toolkit used for TUN mode (SagerNet).
+- Electron, Electron Forge — cross‑platform desktop app framework and tooling.
+- React, TypeScript, Webpack — the frontend stack powering the UI.
+- fast-speedtest-api, ping — utilities that enable in‑app network tools.
+- The broader Go and Node.js ecosystems — robust standard libraries and modules.
+
+Trademarks are the property of their respective owners. Bulletproof is not affiliated with Cloudflare, Psiphon, or any other third parties named here.
+
+## Contributors
+
+Huge thanks to everyone who has contributed ideas, bug reports, and code. Your feedback and PRs help shape Bulletproof. If you’ve contributed and don’t see your name listed yet, please open an issue or PR to be added.
