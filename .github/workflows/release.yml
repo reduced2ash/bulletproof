@@ -42,8 +42,9 @@ jobs:
 
       - name: Ensure Webpack main entry
         run: |
-          node -e "const fs=require('fs');const p=require('./frontend/package.json');if(p.main!=='.webpack/main'){p.main='.webpack/main';fs.writeFileSync('./frontend/package.json',JSON.stringify(p,null,2)+'\n');console.log('[fix] set package.json main to .webpack/main')}else{console.log('[ok] package.json main is .webpack/main')}"
-          echo "Main entry now: $(node -p "require('./frontend/package.json').main")"
+          cd frontend
+          npm pkg set main=.webpack/main
+          echo "Main entry now: $(node -p "require('./package.json').main")"
 
       - name: Install Linux packaging deps
         if: runner.os == 'Linux'
