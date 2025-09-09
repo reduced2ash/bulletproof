@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "commonjs",
-  "main": ".webpack/main/index.js",
+  "main": ".webpack/main",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
