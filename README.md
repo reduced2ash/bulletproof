@@ -6,7 +6,7 @@
 [![Node](https://img.shields.io/badge/Node-18%2B-green?logo=node.js)](https://nodejs.org/)
 [![Go](https://img.shields.io/badge/Go-1.22-blue?logo=go)](https://go.dev/)
 [![Platforms](https://img.shields.io/badge/Platforms-macOS%20%7C%20Windows%20%7C%20Linux-888)](#)
-[![License](https://img.shields.io/badge/License-TBD-lightgrey)](#license)
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)](#license)
 
 Bulletproof is a fast, privacy‑first desktop VPN for macOS, Windows, and Linux. Click once to secure your connection, pick an exit country, and get on with your day — no accounts required, no clutter, and no guesswork.
 
@@ -31,6 +31,13 @@ Why Bulletproof
   
 </div>
 
+## Downloads
+
+- macOS: DMG and ZIP — get the latest from [Releases › Latest](../../releases/latest). If unsigned, Control‑click → Open on first run (see Troubleshooting).
+- Windows: Installer (Squirrel) — download from [Releases › Latest](../../releases/latest) and run Setup.exe.
+- Linux: ZIP — download from [Releases › Latest](../../releases/latest), unzip, run the binary.
+- All versions: [Releases](../../releases)
+
 
 ## Highlights
 
@@ -43,7 +50,9 @@ Why Bulletproof
 
 ## Get Started
 
-- Download a release (coming soon) or build locally. To build now:
+- Download the latest release for your OS (see Downloads above), or build locally.
+
+- Or build locally:
   - Backend: `cd backend && go build -o bulletproofd ./cmd/bulletproofd`
   - Frontend: `cd frontend && npm ci && npm start`
 - Pick a method (WARP/Gool/Psiphon), choose integration, and click Connect.
@@ -145,18 +154,7 @@ cd frontend && npm run make
 
 Binaries for helpers must be present under `frontend/resources/bin/<platform>-<arch>/` so they are included in the packaged app.
 
-Icon setup:
-
-- Base logo: `frontend/src/assets/icon.png` (square; 1024×1024 recommended)
-- Generate platform icons before packaging:
-
-```bash
-cd frontend
-npm ci  # installs icon-gen
-npm run build:icons  # writes icon.icns and icon.ico next to icon.png
-```
-
-Electron Forge is configured to use `src/assets/icon` as the base icon; it will pick `.icns` on macOS and `.ico` on Windows. The PNG is also bundled and used for tray/dev.
+<!-- Icon generation section removed: CI builds use provided assets, no generator required. -->
 
 
 ## Configuration
@@ -268,6 +266,10 @@ Notes:
   - Provide a valid token via your local config and restart; the shipped code uses `fast-speedtest-api` and requires a token.
 - PAC/TUN issues:
   - PAC is implemented for macOS. TUN requires appropriate privileges and a working Sing‑Box binary.
+ - macOS says the app is “damaged” or deletes it on first run:
+   - This happens with unsigned downloads due to Gatekeeper quarantine. Control‑click the app → Open, or remove the quarantine attribute:
+     - `xattr -dr com.apple.quarantine /Applications/Bulletproof.app` (adjust path if needed), then launch again.
+   - We support optional signing & notarization in CI; if you provide Apple Developer credentials as GitHub Secrets (see release.yml), macOS builds will be signed and notarized.
 
 
 ## Contributing
@@ -278,7 +280,7 @@ Notes:
 
 ## License
 
-This repository currently does not include a license file. If you intend to open‑source it, add a `LICENSE` (e.g., MIT or Apache‑2.0) and update the badge above. For proprietary/internal distribution, keep it unlicensed or include an appropriate EULA for distributed binaries.
+MIT — see `LICENSE` for details.
 
 
 ---
