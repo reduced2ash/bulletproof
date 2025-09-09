@@ -1,8 +1,12 @@
 {
   "name": "bulletproof-frontend",
+  "productName": "Bulletproof",
   "private": true,
   "version": "0.1.0",
   "type": "commonjs",
+  "description": "Bulletproof is a fast, privacy‑first desktop VPN for macOS, Windows, and Linux. One‑click secure connectivity via WARP, Gool, and Psiphon.",
+  "author": "Roman Fertig",
+  "license": "MIT",
   "main": ".webpack/main",
   "scripts": {
     "start": "electron-forge start",
