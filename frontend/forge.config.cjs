@@ -31,7 +31,6 @@ module.exports = {
       authors: 'Roman Fertig',
       description: 'Bulletproof is a fast, privacy‑first desktop VPN for macOS, Windows, and Linux.',
       noMsi: true,
-      setupIcon: path.resolve(__dirname, 'src', 'assets', 'icon.ico'),
     }),
     // Zip archives for macOS and Linux to keep packaging simple
     new MakerZIP({}, ['darwin', 'linux']),
