@@ -2,7 +2,8 @@ const path = require('path');
 const { WebpackPlugin } = require('@electron-forge/plugin-webpack');
 const { MakerZIP } = require('@electron-forge/maker-zip');
 const { MakerSquirrel } = require('@electron-forge/maker-squirrel');
-const { MakerDMG } = require('@electron-forge/maker-dmg');
+let MakerDMG;
+try { ({ MakerDMG } = require('@electron-forge/maker-dmg')); } catch (e) { console.warn('[forge] maker-dmg not installed; skipping DMG'); }
 
 // Dynamic packager config so we can enable signing/notarization via env in CI
 const packagerConfig = {
@@ -47,7 +48,7 @@ module.exports = {
     // Zip archives for macOS and Linux to keep packaging simple
     new MakerZIP({}, ['darwin', 'linux']),
     // DMG for macOS (optional nicer experience)
-    new MakerDMG({}),
+    ...(MakerDMG ? [new MakerDMG({})] : []),
   ],
   plugins: [
     new WebpackPlugin({
