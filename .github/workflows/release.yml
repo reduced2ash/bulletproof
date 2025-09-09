@@ -58,6 +58,32 @@ jobs:
           mkdir -p frontend/resources/backend/${{ matrix.plat }}-$ARCH
           cp backend/$BIN frontend/resources/backend/${{ matrix.plat }}-$ARCH/
 
+      - name: Setup macOS codesign keychain
+        if: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERT_P12 && secrets.APPLE_CERT_PASSWORD && secrets.APPLE_ID && secrets.APPLE_APP_SPECIFIC_PASSWORD && secrets.APPLE_TEAM_ID && secrets.APPLE_IDENTITY }}
+        run: |
+          KEYCHAIN=build.keychain
+          KEYCHAIN_PASSWORD=$(uuidgen)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          echo "$APPLE_CERT_P12" | base64 --decode > /tmp/cert.p12
+          security import /tmp/cert.p12 -k "$KEYCHAIN" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+        env:
+          APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+
+      - name: Enable macOS signing & notarization env
+        if: ${{ matrix.os == 'macos-latest' && secrets.APPLE_CERT_P12 && secrets.APPLE_CERT_PASSWORD && secrets.APPLE_ID && secrets.APPLE_APP_SPECIFIC_PASSWORD && secrets.APPLE_TEAM_ID && secrets.APPLE_IDENTITY }}
+        run: |
+          echo "MAC_SIGN=1" >> $GITHUB_ENV
+          echo "MAC_NOTARIZE=1" >> $GITHUB_ENV
+          echo "APPLE_ID=${{ secrets.APPLE_ID }}" >> $GITHUB_ENV
+          echo "APPLE_APP_SPECIFIC_PASSWORD=${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}" >> $GITHUB_ENV
+          echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> $GITHUB_ENV
+          echo "APPLE_IDENTITY=${{ secrets.APPLE_IDENTITY }}" >> $GITHUB_ENV
+
       - name: Package app
         run: |
           cd frontend

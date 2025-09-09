@@ -1,12 +1,11 @@
 const path = require('path');
 const { WebpackPlugin } = require('@electron-forge/plugin-webpack');
 const { MakerZIP } = require('@electron-forge/maker-zip');
-const { MakerDeb } = require('@electron-forge/maker-deb');
-const { MakerRpm } = require('@electron-forge/maker-rpm');
 const { MakerSquirrel } = require('@electron-forge/maker-squirrel');
+const { MakerDMG } = require('@electron-forge/maker-dmg');
 
-module.exports = {
-  packagerConfig: {
+// Dynamic packager config so we can enable signing/notarization via env in CI
+const packagerConfig = {
     // Base icon path (Electron Packager will append platform extension: .icns on macOS, .ico on Windows)
     icon: path.resolve(__dirname, 'src', 'assets', 'icon'),
     extraResources: [
@@ -23,7 +22,20 @@ module.exports = {
         to: 'backend',
       },
     ],
-  },
+    osxSign: process.env.MAC_SIGN ? {
+      identity: process.env.APPLE_IDENTITY,
+      'hardened-runtime': true,
+      'gatekeeper-assess': false,
+    } : undefined,
+    osxNotarize: process.env.MAC_NOTARIZE ? {
+      appleId: process.env.APPLE_ID,
+      appleIdPassword: process.env.APPLE_APP_SPECIFIC_PASSWORD,
+      teamId: process.env.APPLE_TEAM_ID,
+    } : undefined,
+  };
+
+module.exports = {
+  packagerConfig,
   rebuildConfig: {},
   makers: [
     // Windows installer (Squirrel)
@@ -34,6 +46,8 @@ module.exports = {
     }),
     // Zip archives for macOS and Linux to keep packaging simple
     new MakerZIP({}, ['darwin', 'linux']),
+    // DMG for macOS (optional nicer experience)
+    new MakerDMG({}),
   ],
   plugins: [
     new WebpackPlugin({
