@@ -46,11 +46,11 @@ jobs:
           npm pkg set main=.webpack/main
           echo "Main entry now: $(node -p "require('./package.json').main")"
 
-      - name: Install Linux packaging deps
-        if: runner.os == 'Linux'
+      # Icon generation for Windows/macOS packaging
+      - name: Generate platform icons
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rpm fakeroot
+          cd frontend
+          npm run build:icons
 
       - name: Build backend binary
         shell: bash
