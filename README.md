@@ -21,14 +21,15 @@ Why Bulletproof
 ## Quick Preview
 
 <div align="center">
-  <img alt="Main UI" src="docs/screenshot-main.png" width="260" />
-  <img alt="Settings" src="docs/screenshot-settings.png" width="260" />
-  <img alt="Tools" src="docs/screenshot-tools.png" width="260" />
+  <img alt="Bulletproof connection view" src="docs/screenshot-main.png" width="760" />
+  <br />
+  <br />
+  <img alt="Bulletproof diagnostics view" src="docs/screenshot-tools.png" width="49%" />
+  <img alt="Bulletproof settings view" src="docs/screenshot-settings.png" width="49%" />
   <br />
   <sub>Run <code>npm run shot</code> in <code>frontend/</code> to regenerate.</sub>
   <br />
   <br />
-  
 </div>
 
 ## Downloads

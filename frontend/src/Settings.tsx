@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 type Provider = 'warp' | 'gool' | 'psiphon';
 
 interface SettingsProps {
+  demo?: boolean;
   provider: Provider;
   setProvider: (p: Provider) => void;
   integration: 'direct'|'pac'|'tun';
@@ -19,7 +20,33 @@ interface SettingsProps {
   setLicense: (l: 'free' | 'warp+') => void;
 }
 
+interface IdentityInfo {
+  exists: boolean;
+  deviceId?: string;
+  accountId?: string;
+  publicKey?: string;
+  path?: string;
+  hasPrivateKey: boolean;
+  hasToken: boolean;
+}
+
+
+const parseIdentity = (value: unknown): IdentityInfo | null => {
+  if (typeof value !== 'object' || value === null) return null;
+  const record = value as Record<string, unknown>;
+  return {
+    exists: record.exists === true,
+    deviceId: typeof record.deviceId === 'string' ? record.deviceId : undefined,
+    accountId: typeof record.accountId === 'string' ? record.accountId : undefined,
+    publicKey: typeof record.publicKey === 'string' ? record.publicKey : undefined,
+    path: typeof record.path === 'string' ? record.path : undefined,
+    hasPrivateKey: record.hasPrivateKey === true,
+    hasToken: record.hasToken === true,
+  };
+};
+
 export default function Settings({
+  demo = false,
   provider,
   setProvider,
   integration,
@@ -35,134 +62,167 @@ export default function Settings({
   license,
   setLicense,
 }: SettingsProps) {
-  const [identity, setIdentity] = useState<any>(null);
+  const [identity, setIdentity] = useState<IdentityInfo | null>(null);
   const [loadingId, setLoadingId] = useState(false);
 
   const loadIdentity = async () => {
+    if (demo) {
+      setIdentity(null);
+      return;
+    }
     setLoadingId(true);
-    // @ts-ignore
-    const res = await window.electron.identity();
-    setIdentity(res);
-    setLoadingId(false);
+    try {
+      // @ts-ignore
+      const response = await window.electron.identity();
+      setIdentity(parseIdentity(response));
+    } catch {
+      setIdentity(null);
+    } finally {
+      setLoadingId(false);
+    }
   };
 
-  useEffect(() => { loadIdentity(); }, []);
+  useEffect(() => { void loadIdentity(); }, [demo]);
 
   const resetIdentity = async () => {
+    if (demo) {
+      setIdentity(null);
+      return;
+    }
     // @ts-ignore
     await window.electron.identityReset();
     await loadIdentity();
   };
 
   return (
-    <div className="settings-stack">
-      <div className="tool-card">
-        <div className="tool-header"><h3>🔧 Integration Mode</h3></div>
-        <p className="subtitle">Choose how Bulletproof integrates with your system.</p>
-        <div className="radio-group">
-          <label>
+    <main className="page settings-page">
+      <header className="page-header">
+        <div>
+          <span className="page-kicker">Configuration</span>
+          <h1>Settings</h1>
+          <p>Routing, provider, and local identity.</p>
+        </div>
+      </header>
+
+      <section className="settings-section">
+        <div className="settings-intro">
+          <span className="section-label">Routing</span>
+          <h2>Route mode</h2>
+          <p>Choose the system boundary.</p>
+        </div>
+        <div className="choice-list">
+          <label className={`choice-row ${integration === 'direct' ? 'selected' : ''}`}>
             <input type="radio" value="direct" checked={integration === 'direct'} onChange={() => setIntegration('direct')} />
-            🧩 Direct (in‑app proxy)
-            <p className="radio-description">Use the app’s SOCKS proxy only; no system changes.</p>
+            <span className="choice-copy"><strong>Direct</strong><span>Application proxy only</span></span>
+            <code>SOCKS5</code>
           </label>
-          <label>
+          <label className={`choice-row ${integration === 'pac' ? 'selected' : ''}`}>
             <input type="radio" value="pac" checked={integration === 'pac'} onChange={() => setIntegration('pac')} />
-            🌐 System Proxy (PAC)
-            <p className="radio-description">Sets OS proxy via PAC to route through the local SOCKS.</p>
+            <span className="choice-copy"><strong>System proxy</strong><span>OS proxy configuration</span></span>
+            <code>PAC</code>
           </label>
-          <label>
+          <label className={`choice-row ${integration === 'tun' ? 'selected' : ''}`}>
             <input type="radio" value="tun" checked={integration === 'tun'} onChange={() => setIntegration('tun')} />
-            🛡️ TUN (Sing‑Box)
-            <p className="radio-description">Creates a TUN interface and forwards traffic via SOCKS.</p>
+            <span className="choice-copy"><strong>TUN</strong><span>Full-device routing</span></span>
+            <code>TUN</code>
           </label>
         </div>
-      </div>
+      </section>
 
-      <div className="tool-card">
-        <div className="tool-header"><h3>🔌 Connection Method</h3></div>
-        <p className="subtitle">Select the protocol/provider for your connection.</p>
-        <div className="radio-group">
-          <label>
+      <section className="settings-section">
+        <div className="settings-intro">
+          <span className="section-label">Transport</span>
+          <h2>Provider</h2>
+          <p>Select the active engine.</p>
+        </div>
+        <div className="choice-list">
+          <label className={`choice-row ${provider === 'warp' ? 'selected' : ''}`}>
             <input type="radio" value="warp" checked={provider === 'warp'} onChange={() => setProvider('warp')} />
-            🌀 WARP
-            <p className="radio-description">Cloudflare’s modern optimized protocol (WARP/WARP+).</p>
+            <span className="choice-copy"><strong>WARP</strong><span>Cloudflare route</span></span>
+            <code>warp</code>
           </label>
-          <label>
+          <label className={`choice-row ${provider === 'gool' ? 'selected' : ''}`}>
             <input type="radio" value="gool" checked={provider === 'gool'} onChange={() => setProvider('gool')} />
-            🚀 Gool
-            <p className="radio-description">A performance‑focused mode with quick startup.</p>
+            <span className="choice-copy"><strong>Gool</strong><span>Fast-start route</span></span>
+            <code>gool</code>
           </label>
-          <label>
+          <label className={`choice-row ${provider === 'psiphon' ? 'selected' : ''}`}>
             <input type="radio" value="psiphon" checked={provider === 'psiphon'} onChange={() => setProvider('psiphon')} />
-            🛰️ Psiphon
-            <p className="radio-description">Robust circumvention via Psiphon routing.</p>
+            <span className="choice-copy"><strong>Psiphon</strong><span>Circumvention route</span></span>
+            <code>psiphon</code>
           </label>
         </div>
-      </div>
+      </section>
 
-      <div className="tool-card">
-        <div className="tool-header"><h3>🌍 Connection Settings</h3></div>
-        <p className="subtitle">Optional server/port; leave empty to auto‑select.</p>
-        <div className="input-row">
-          <div style={{ flex: 1 }}>
-            <label className="form-label" htmlFor="server-address">Server</label>
-            <input type="text" id="server-address" className="form-input" placeholder="auto (leave empty)" value={server} onChange={(e) => setServer(e.target.value)} />
-          </div>
-          <div style={{ width: 120 }}>
-            <label className="form-label" htmlFor="server-port">Port</label>
-            <input type="number" id="server-port" className="form-input" placeholder="auto" value={port || ''} onChange={(e) => setPort(parseInt(e.target.value || '0', 10))} />
-          </div>
+      <section className="settings-section">
+        <div className="settings-intro">
+          <span className="section-label">Endpoint</span>
+          <h2>Connection</h2>
+          <p>Empty fields use automatic selection.</p>
         </div>
-        <div className="input-row">
-          <div style={{ flex: 1 }}>
-            <label className="form-label" htmlFor="exit-country">Exit Country</label>
-            <select id="exit-country" className="form-input" value={exitCountry} onChange={(e) => setExitCountry(e.target.value)}>
+        <div className="form-grid">
+          <label className="form-field form-field-wide">
+            <span>Server</span>
+            <input type="text" className="form-input" placeholder="Automatic" value={server} onChange={(event) => setServer(event.target.value)} />
+          </label>
+          <label className="form-field">
+            <span>Port</span>
+            <input type="number" className="form-input" placeholder="Auto" value={port || ''} onChange={(event) => setPort(parseInt(event.target.value || '0', 10))} />
+          </label>
+          <label className="form-field">
+            <span>Exit country</span>
+            <select className="form-input" value={exitCountry} onChange={(event) => setExitCountry(event.target.value)}>
               <option value="US">United States</option>
               <option value="CA">Canada</option>
               <option value="DE">Germany</option>
               <option value="JP">Japan</option>
             </select>
-          </div>
-          <div style={{ flex: 1 }}>
-            <label className="form-label" htmlFor="license-type">License</label>
-            <select id="license-type" className="form-input" value={license} onChange={(e) => setLicense((e.target.value as 'free' | 'warp+'))}>
+          </label>
+          <label className="form-field">
+            <span>License</span>
+            <select className="form-input" value={license} onChange={(event) => setLicense(event.target.value as 'free' | 'warp+')}>
               <option value="free">Free</option>
               <option value="warp+">WARP+</option>
             </select>
-          </div>
+          </label>
+          <label className="form-field form-field-wide">
+            <span>WARP / WARP+ key</span>
+            <input type="text" className="form-input" value={warpKey} placeholder="Optional license key" onChange={(event) => setWarpKey(event.target.value)} />
+          </label>
         </div>
-        <div className="input-row">
-          <div style={{ flex: 1 }}>
-            <label className="form-label" htmlFor="warp-key">WARP/WARP+ Key</label>
-            <input type="text" id="warp-key" className="form-input" value={warpKey} placeholder="e.g., EABCD-..." onChange={(e) => setWarpKey(e.target.value)} />
-          </div>
-        </div>
-      </div>
+      </section>
 
-      <div className="tool-card">
-        <div className="tool-header"><h3>🆔 WARP Identity</h3></div>
-        <p className="subtitle">Device identity is stored locally and created on first connect.</p>
-        {loadingId ? (
-          <p className="subtitle">Loading…</p>
-        ) : identity?.exists ? (
-          <div className="kv" style={{ marginTop: 6 }}>
-            <div className="k">Device ID</div><div className="v" title={identity.deviceId}>{identity.deviceId}</div>
-            <div className="k">Account ID</div><div className="v" title={identity.accountId || '—'}>{identity.accountId || '—'}</div>
-            <div className="k">Public Key</div><div className="v" title={identity.publicKey}>{(identity.publicKey || '').slice(0, 24)}…</div>
-            <div className="k">Path</div><div className="v" title={identity.path}>{identity.path}</div>
-            <div className="k">Private Key</div><div className="v">{identity.hasPrivateKey ? <span className="badge ok">Present</span> : <span className="badge warn">Missing</span>}</div>
-            <div className="k">Token</div><div className="v">{identity.hasToken ? <span className="badge ok">Present</span> : <span className="badge warn">Missing</span>}</div>
-          </div>
-        ) : (
-          <p className="subtitle">No identity yet. It will be created automatically on first connect.</p>
-        )}
-        <div className="tool-actions" style={{ marginTop: 8 }}>
-          <button className="btn" onClick={loadIdentity}>Refresh</button>
-          <button className="btn btn-danger" onClick={resetIdentity}>Reset Identity</button>
+      <section className="settings-section identity-section">
+        <div className="settings-intro">
+          <span className="section-label">Local state</span>
+          <h2>WARP identity</h2>
+          <p>Stored only on this device.</p>
         </div>
-      </div>
-
-      {/* About card removed per request */}
-    </div>
+        <div>
+          {loadingId ? (
+            <div className="identity-loading" aria-label="Loading identity">
+              <span />
+              <span />
+              <span />
+            </div>
+          ) : identity?.exists ? (
+            <dl className="identity-grid">
+              <div><dt>Device ID</dt><dd title={identity.deviceId}><code>{identity.deviceId || 'n/a'}</code></dd></div>
+              <div><dt>Account ID</dt><dd title={identity.accountId}><code>{identity.accountId || 'n/a'}</code></dd></div>
+              <div><dt>Public key</dt><dd title={identity.publicKey}><code>{identity.publicKey ? `${identity.publicKey.slice(0, 22)}…` : 'n/a'}</code></dd></div>
+              <div><dt>Path</dt><dd title={identity.path}><code>{identity.path || 'n/a'}</code></dd></div>
+              <div><dt>Private key</dt><dd><span className={`badge ${identity.hasPrivateKey ? 'ok' : 'warn'}`}>{identity.hasPrivateKey ? 'Present' : 'Missing'}</span></dd></div>
+              <div><dt>Token</dt><dd><span className={`badge ${identity.hasToken ? 'ok' : 'warn'}`}>{identity.hasToken ? 'Present' : 'Missing'}</span></dd></div>
+            </dl>
+          ) : (
+            <p className="empty-note">No local identity. One is created on first connection.</p>
+          )}
+          <div className="tool-actions">
+            <button type="button" className="secondary-button" onClick={loadIdentity}>Refresh</button>
+            <button type="button" className="danger-button" onClick={resetIdentity}>Reset identity</button>
+          </div>
+        </div>
+      </section>
+    </main>
   );
 }

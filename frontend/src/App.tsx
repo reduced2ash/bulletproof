@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Settings from './Settings';
 import Tools from './Tools';
 import Navbar from './Navbar';
+import bulletproofLogo from './assets/icon.png';
 import { bpConnect, bpDisconnect, ConnectPayload, bpProxyTest, bpProbePort } from './backendClient';
 
 type Provider = 'warp' | 'gool' | 'psiphon';
@@ -26,12 +27,6 @@ type MainProps = {
   onCopyBind: (text: string) => void;
 };
 
-const flagFor = (cc: string) => {
-  const code = (cc || '').toUpperCase();
-  if (code.length !== 2) return '🏳️';
-  const A = 0x1f1e6;
-  return String.fromCodePoint(A + (code.charCodeAt(0) - 65), A + (code.charCodeAt(1) - 65));
-};
 
 const MainPage: React.FC<MainProps> = ({
   connected,
@@ -52,101 +47,148 @@ const MainPage: React.FC<MainProps> = ({
   onGoSettings,
   onCopyBind,
 }) => (
-  <main className="app-main">
-    <div className={`dial ${connected ? 'on' : 'off'} ${connecting ? 'pulse' : ''}`}> 
-      <div
-        className={`toggle-switch ${connected ? 'on' : 'off'} ${connecting ? 'loading' : ''}`}
-        onClick={() => { if (!connecting) onToggle(); }}
-        role="button"
+  <main className="page connection-page">
+    <header className="page-header">
+      <div>
+        <span className="page-kicker">Runtime</span>
+        <h1>Connection</h1>
+        <p>Local tunnel and route state.</p>
+      </div>
+      <button
+        type="button"
+        className={`primary-button connection-button ${connected ? 'disconnect' : ''}`}
+        onClick={onToggle}
+        disabled={connecting}
         aria-pressed={connected}
-        aria-label={connected ? 'Disconnect' : 'Connect'}
       >
-        <div className="toggle-handle" />
-      </div>
-    </div>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="M10 2.5v7" />
+          <path d="M5.4 5.2a7 7 0 1 0 9.2 0" />
+        </svg>
+        {connecting ? 'Starting tunnel' : connected ? 'Disconnect' : 'Connect'}
+      </button>
+    </header>
 
-    <div className="status-text">
-      {connecting ? (
-        <span className="loading-row"><span className="spinner" />Connecting…</span>
-      ) : (
-        <span>{message || (connected ? (bind ? `Connected · ${bind}` : 'Connected') : 'Not Connected')}</span>
-      )}
-    </div>
-
-    <div className="status-chips" aria-label="Connection details">
-      <div className="chip" title={`Provider: ${provider}`}>
-        <span className="chip-icon" aria-hidden>{provider === 'warp' ? '🌀' : provider === 'gool' ? '🚀' : '🛰️'}</span>
-        <span className="chip-label">{provider.toUpperCase()}</span>
-      </div>
-      <div className="chip" title={`Integration: ${integration}`}>
-        <span className="chip-icon" aria-hidden>{integration === 'direct' ? '🧩' : integration === 'pac' ? '🌐' : '🛡️'}</span>
-        <span className="chip-label">{integration.toUpperCase()}</span>
-      </div>
-      <div className="chip" title={`Exit Country: ${exitCountry}`}>
-        <span className="chip-icon" aria-hidden>{flagFor(exitCountry)}</span>
-        <span className="chip-label">{exitCountry}</span>
-      </div>
-      {pacEnabled && (
-        <div className="chip chip-on" title="System PAC Enabled"><span className="chip-icon">📜</span><span className="chip-label">PAC</span></div>
-      )}
-      {tunEnabled && (
-        <div className="chip chip-on" title="TUN Active"><span className="chip-icon">🛡️</span><span className="chip-label">TUN</span></div>
-      )}
-    </div>
-
-    <div className="status-grid">
-      <div className="status-card">
-        <div className="status-title"><span aria-hidden>🔗</span> SOCKS Bind</div>
-        <div className="status-value mono" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span className="ellipsis" title={bind}>{bind || '—'}</span>
-          {bind && (
-            <button
-              className="icon-btn"
-              title="Copy bind"
-              onClick={() => onCopyBind(bind)}
-              aria-label="Copy bind"
-            >⧉</button>
-          )}
+    <section
+      className={`connection-summary ${connected ? 'is-connected' : connecting ? 'is-pending' : 'is-idle'}`}
+      aria-live="polite"
+    >
+      <div className="connection-summary-main">
+        <div
+          className={`route-orb-mark ${connected ? 'is-connected' : connecting ? 'is-pending' : 'is-idle'}`}
+          role="img"
+          aria-label={`Route ${connecting ? 'waiting' : connected ? 'live' : 'idle'}`}
+        >
+          <span className="route-orb-label">Route</span>
+          <span className="route-orb" aria-hidden="true">
+            <span className="route-orb-ring route-orb-ring-primary" />
+            <span className="route-orb-ring route-orb-ring-secondary" />
+            <span className="route-orb-core" />
+            <span className="route-orb-signal" />
+          </span>
+          <span className="route-orb-status">{connecting ? 'Waiting' : connected ? 'Live' : 'Idle'}</span>
+        </div>
+        <div className="connection-copy">
+          <div className="status-line">
+            <span className="status-caption">Secure tunnel</span>
+            <span className={`state-badge ${connected ? 'is-connected' : connecting ? 'is-pending' : 'is-idle'}`}>
+              {connecting ? 'Starting' : connected ? 'Connected' : 'Offline'}
+            </span>
+          </div>
+          <h2>{connecting ? 'Establishing route' : connected ? 'Tunnel active' : 'Tunnel inactive'}</h2>
+          <p className="status-message">
+            {message || (connected ? 'Traffic is routed through the local client.' : 'Ready to connect.')}
+          </p>
         </div>
       </div>
-      <div className="status-card">
-        <div className="status-title"><span aria-hidden>{listening ? '🟢' : '🔴'}</span> Port</div>
-        <div className="status-value">{listening ? 'Listening' : 'Not listening'}</div>
-      </div>
-      <div className="status-card">
-        <div className="status-title"><span aria-hidden>⚡</span> Latency</div>
-        <div className="status-value">{latencyMs != null ? `${Math.round(latencyMs)} ms` : '—'}</div>
-      </div>
-      <div className="status-card">
-        <div className="status-title"><span aria-hidden>💬</span> State</div>
-        <div className="status-value ellipsis" title={message}>{message || (connected ? 'Connected' : 'Idle')}</div>
-      </div>
-      <div className="status-card">
-        <div className="status-title"><span aria-hidden>🌍</span> Public IP</div>
-        <div className="status-value mono">{ipInfo?.ip || '—'}</div>
-      </div>
-      <div className="status-card">
-        <div className="status-title"><span aria-hidden>🏷️</span> ISP/ASN</div>
-        <div className="status-value ellipsis" title={`${ipInfo?.isp || ''} ${ipInfo?.asn || ''}`.trim()}>
-          {(ipInfo?.isp || '—')}{ipInfo?.asn ? ` · ${ipInfo.asn}` : ''}
+      <div className="route-map" role="img" aria-label={`Route: local device through ${provider} to ${exitCountry}`}>
+        <div className="route-node">
+          <span className="route-marker" aria-hidden="true" />
+          <span className="route-node-copy"><strong>Local</strong><small>{integration === 'direct' ? 'App only' : integration.toUpperCase()}</small></span>
+        </div>
+        <div className={`route-link ${connected ? 'is-live' : ''}`} aria-hidden="true">
+          <span className="route-link-label">{integration}</span>
+          <span className="route-link-line" />
+        </div>
+        <div className="route-node">
+          <span className="route-marker" aria-hidden="true" />
+          <span className="route-node-copy"><strong>{provider}</strong><small>Provider</small></span>
+        </div>
+        <div className={`route-link ${connected ? 'is-live' : ''}`} aria-hidden="true">
+          <span className="route-link-label">{tunEnabled ? 'TUN' : pacEnabled ? 'PAC' : 'SOCKS'}</span>
+          <span className="route-link-line" />
+        </div>
+        <div className="route-node route-node-exit">
+          <span className="route-marker" aria-hidden="true" />
+          <span className="route-node-copy"><strong>{exitCountry}</strong><small>Exit</small></span>
         </div>
       </div>
-    </div>
+    </section>
+
+    <section className="runtime-section">
+      <div className="section-heading">
+        <h2>Runtime details</h2>
+        <span>{connected ? 'Live session' : 'No active session'}</span>
+      </div>
+      <dl className="runtime-grid">
+        <div className="runtime-item">
+          <dt>SOCKS bind</dt>
+          <dd className="runtime-value-inline">
+            <code title={bind}>{bind || 'not assigned'}</code>
+            {bind && (
+              <button type="button" className="copy-button" onClick={() => onCopyBind(bind)}>
+                Copy
+              </button>
+            )}
+          </dd>
+        </div>
+        <div className="runtime-item">
+          <dt>Port</dt>
+          <dd><span className={`inline-state ${listening ? 'ok' : 'muted'}`} />{listening ? 'Listening' : 'Not listening'}</dd>
+        </div>
+        <div className="runtime-item">
+          <dt>Latency</dt>
+          <dd>{latencyMs != null ? `${Math.round(latencyMs)} ms` : 'not measured'}</dd>
+        </div>
+        <div className="runtime-item">
+          <dt>Public IP</dt>
+          <dd><code>{ipInfo?.ip || 'not available'}</code></dd>
+        </div>
+        <div className="runtime-item">
+          <dt>Backend state</dt>
+          <dd title={message}>{message || (connected ? 'Connected' : 'Idle')}</dd>
+        </div>
+        <div className="runtime-item">
+          <dt>ISP / ASN</dt>
+          <dd title={`${ipInfo?.isp || ''} ${ipInfo?.asn || ''}`.trim()}>
+            {ipInfo?.isp || 'not available'}{ipInfo?.asn ? ` · ${ipInfo.asn}` : ''}
+          </dd>
+        </div>
+      </dl>
+    </section>
 
     {lastError && (
-      <div className="status-card error" role="status" aria-live="polite" style={{ width: 'calc(100% - 16px)' }}>
-        <div className="status-title"><span aria-hidden>❗</span> Last Error</div>
-        <div className="status-value ellipsis" title={lastError}>{lastError}</div>
-      </div>
+      <section className="inline-alert" role="status" aria-live="polite">
+        <div>
+          <strong>Last error</strong>
+          <span title={lastError}>{lastError}</span>
+        </div>
+      </section>
     )}
 
-    
+    <div className="page-actions">
+      <button type="button" className="text-button" onClick={onGoTools}>Open diagnostics</button>
+      <button type="button" className="text-button" onClick={onGoSettings}>Configure route</button>
+    </div>
   </main>
 );
 
 const App: React.FC = () => {
-  const isDemo = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('demo') === '1';
-  const demoPage = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('page') || 'main';
+  const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+  const isDemo = searchParams.get('demo') === '1';
+  const demoPage = searchParams.get('page') || 'main';
+  const isCapture = searchParams.get('capture') === '1';
+  const isMac = typeof navigator !== 'undefined' && navigator.platform.toLowerCase().includes('mac');
   const [activePage, setActivePage] = useState<'main' | 'tools' | 'settings'>('main');
 
   // Lifted settings state
@@ -161,23 +203,24 @@ const App: React.FC = () => {
   // Connection state lifted so it survives navigation
   const [connected, setConnected] = useState(isDemo ? true : false);
   const [connecting, setConnecting] = useState(false);
-  const [message, setMessage] = useState<string>(isDemo ? 'Connected (demo)' : '');
+  const [message, setMessage] = useState<string>(isDemo ? 'Connected through WARP' : '');
   const [bind, setBind] = useState<string>(isDemo ? '127.0.0.1:8087' : '');
   const [pacEnabled, setPacEnabled] = useState<boolean>(false);
   const [tunEnabled, setTunEnabled] = useState<boolean>(false);
-  const [listening, setListening] = useState<boolean>(false);
+  const [listening, setListening] = useState<boolean>(isDemo);
   const [latencyMs, setLatencyMs] = useState<number | null>(isDemo ? 23 : null);
-  const [ipInfo, setIpInfo] = useState<{ ip?: string; country?: string; isp?: string; asn?: string } | null>(isDemo ? { ip: '203.0.113.42', country: 'US', isp: 'Example ISP', asn: 'AS64500' } : null);
+  const [ipInfo, setIpInfo] = useState<{ ip?: string; country?: string; isp?: string; asn?: string } | null>(isDemo ? { ip: '203.0.113.42', country: 'US', isp: 'Documentation network', asn: 'AS64500' } : null);
   const [lastError, setLastError] = useState<string | null>(null);
   const [events, setEvents] = useState<Array<{ t: number; text: string; kind?: 'info'|'success'|'error' }>>([]);
   const [toast, setToast] = useState<{ text: string; kind?: 'info'|'success'|'error' } | null>(null);
   const [eventsOpen, setEventsOpen] = useState(false);
   const eventsRef = useRef<HTMLDivElement | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const showToast = useCallback((text: string, kind: 'info'|'success'|'error' = 'info') => {
     setToast({ text, kind });
-    window.clearTimeout((showToast as any)._t);
-    (showToast as any)._t = window.setTimeout(() => setToast(null), 1800);
+    if (toastTimerRef.current !== null) window.clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 1800);
   }, []);
 
   const pushEvent = useCallback((text: string, kind: 'info'|'success'|'error' = 'info') => {
@@ -240,7 +283,7 @@ const App: React.FC = () => {
   // Probe port and latency periodically when connected
   useEffect(() => {
     if (isDemo) return;
-    let timer: any;
+    let timer: number | undefined;
     const tick = async () => {
       try {
         const chosenBind = bind || '127.0.0.1:8086';
@@ -250,9 +293,9 @@ const App: React.FC = () => {
       try {
         // @ts-ignore
         const res = await window.electron.ping('1.1.1.1');
-        const v = (res?.time ?? res?.avg ?? null);
-        const n = typeof v === 'string' ? parseFloat(v) : (typeof v === 'number' ? v : null);
-        setLatencyMs(Number.isFinite(n as number) ? (n as number) : null);
+        const value = res?.time ?? res?.avg ?? null;
+        const latency = typeof value === 'string' ? parseFloat(value) : (typeof value === 'number' ? value : null);
+        setLatencyMs(latency !== null && Number.isFinite(latency) ? latency : null);
       } catch { setLatencyMs(null); }
       try {
         // @ts-ignore
@@ -268,13 +311,13 @@ const App: React.FC = () => {
     };
     if (connected) {
       tick();
-      timer = setInterval(tick, 4000);
+      timer = window.setInterval(tick, 4000);
     } else {
       setListening(false);
       setLatencyMs(null);
       setIpInfo(null);
     }
-    return () => { if (timer) clearInterval(timer); };
+    return () => { if (timer) window.clearInterval(timer); };
   }, [connected, bind, isDemo]);
 
   const pollUntilConnected = async (timeoutMs = 75000) => {
@@ -348,19 +391,18 @@ const App: React.FC = () => {
         pushEvent('Disconnected', 'info');
         setConnecting(false);
       }
-    } catch (e: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setConnecting(false);
-      setMessage(e?.message || 'Error');
-      setLastError(e?.message || 'Unknown error');
-      pushEvent(e?.message || 'Unknown error', 'error');
+      setMessage(errorMessage);
+      setLastError(errorMessage);
+      pushEvent(errorMessage, 'error');
     }
   }, [connecting, connected, buildPayload]);
 
   useEffect(() => {
     if (isDemo) {
-      if (demoPage === 'tools' || demoPage === 'settings' || demoPage === 'main') setActivePage(demoPage as any);
-      setPacEnabled(true);
-      setTunEnabled(true);
+      if (demoPage === 'tools' || demoPage === 'settings' || demoPage === 'main') setActivePage(demoPage);
       pushEvent('Connected · 127.0.0.1:8087', 'success');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -369,10 +411,11 @@ const App: React.FC = () => {
   const renderPage = () => {
     switch (activePage) {
       case 'tools':
-        return <Tools initialBind={bind} />;
+        return <Tools initialBind={bind} demo={isDemo} />;
       case 'settings':
         return (
           <Settings
+            demo={isDemo}
             provider={provider}
             setProvider={setProvider}
             integration={integration}
@@ -420,56 +463,58 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="container">
-      <header className="app-header">
-        <div className="brand-row">
-          <h1>Bulletproof</h1>
-          <div className="header-actions" ref={eventsRef}>
-            <div className={`header-pill ${connecting ? 'connecting' : (connected ? 'on' : 'off')}`}>
-              <span className={`dot ${connecting ? 'amber' : (connected ? 'green' : 'gray')}`} aria-hidden />
-              <span className="label">{connecting ? 'Connecting…' : (connected ? 'Connected' : 'Offline')}</span>
+    <div className="app-shell">
+      <header className={`titlebar ${isMac ? 'platform-mac' : 'platform-overlay'} ${isCapture ? 'is-capture' : ''}`}>
+        <div className="project-lockup">
+          <img className="project-logo" src={bulletproofLogo} alt="" aria-hidden="true" />
+          <strong>Bulletproof</strong>
+        </div>
+        <div className="header-actions" ref={eventsRef}>
+          <span className={`header-status ${connecting ? 'pending' : connected ? 'connected' : 'offline'}`}>
+            <span className="status-light" aria-hidden="true" />
+            {connecting ? 'Connecting' : connected ? 'Connected' : 'Offline'}
+          </span>
+          <button
+            type="button"
+            className="events-button"
+            aria-label={`Recent events, ${events.length}`}
+            aria-haspopup="menu"
+            aria-expanded={eventsOpen}
+            title="Recent events"
+            onClick={() => setEventsOpen(v => !v)}
+          >
+            <svg viewBox="0 0 18 18" aria-hidden="true">
+              <path d="M4 5h10" />
+              <path d="M4 9h10" />
+              <path d="M4 13h7" />
+            </svg>
+            <span className="event-count">{events.length}</span>
+          </button>
+          {eventsOpen && (
+            <div className="events-dropdown" role="menu">
+              <div className="events-header">Recent events</div>
+              {events.length === 0 ? (
+                <div className="events-empty">No events recorded.</div>
+              ) : (
+                <ul className="event-list">
+                  {events.map((e, idx) => (
+                    <li key={e.t + '-' + idx} className={`event-item ${e.kind || 'info'}`}>
+                      <span className="event-dot" aria-hidden="true" />
+                      <span className="event-text" title={e.text}>{e.text}</span>
+                      <time className="event-time">{new Date(e.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-            <button
-              type="button"
-              className="icon-btn events-btn"
-              aria-haspopup="menu"
-              aria-expanded={eventsOpen}
-              title="Recent Events"
-              onClick={() => setEventsOpen(v => !v)}
-            >📝</button>
-            {eventsOpen && (
-              <div className="events-dropdown" role="menu">
-                <div className="events-header">Recent Events</div>
-                {events.length === 0 ? (
-                  <div className="events-empty">No events yet</div>
-                ) : (
-                  <ul className="event-list">
-                    {events.map((e, idx) => (
-                      <li key={e.t + '-' + idx} className={`event-item ${e.kind || 'info'}`}>
-                        <span className="event-dot" aria-hidden />
-                        <span className="event-text" title={e.text}>{e.text}</span>
-                        <span className="event-time" aria-hidden>{new Date(e.t).toLocaleTimeString()}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-          </div>
+          )}
         </div>
-        <div className="header-sub">
-          <span className="sub-item" title={`Provider: ${provider}`}>{provider === 'warp' ? '🌀' : provider === 'gool' ? '🚀' : '🛰️'} {provider.toUpperCase()}</span>
-          <span className="dot-sep" aria-hidden>•</span>
-          <span className="sub-item" title={`Integration: ${integration}`}>{integration === 'direct' ? '🧩' : integration === 'pac' ? '🌐' : '🛡️'} {integration.toUpperCase()}</span>
-          <span className="dot-sep" aria-hidden>•</span>
-          <span className="sub-item" title={`Exit Country: ${exitCountry}`}>{flagFor(exitCountry)} {exitCountry}</span>
-        </div>
-        <div className="header-beam" aria-hidden />
       </header>
 
-      <div className="page-content">{renderPage()}</div>
-
-      <Navbar activePage={activePage} onPageChange={setActivePage} />
+      <div className="app-body">
+        <Navbar activePage={activePage} onPageChange={setActivePage} />
+        <div className={`page-content ${activePage === 'main' ? 'connection-content' : ''}`}>{renderPage()}</div>
+      </div>
 
       {toast && (
         <div className="toast-container" aria-live="polite" aria-atomic="true">

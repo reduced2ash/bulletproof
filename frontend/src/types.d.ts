@@ -5,6 +5,11 @@ export interface IElectronAPI {
   connect: (provider: 'warp'|'gool'|'psiphon', exitCountry?: string) => Promise<any>;
   disconnect: () => Promise<any>;
   status: () => Promise<any>;
+  proxyTest: (bind?: string) => Promise<{ error?: string; body?: string; [key: string]: unknown }>;
+  probePort: (bind?: string) => Promise<{ listening?: boolean }>;
+  diag: () => Promise<unknown>;
+  identity: () => Promise<unknown>;
+  identityReset: () => Promise<unknown>;
 }
 
 declare global {
@@ -12,6 +17,3 @@ declare global {
     electron: IElectronAPI;
   }
 }
-
-// Declare the module for fast-speedtest-api since it has no official types
-declare module 'fast-speedtest-api';

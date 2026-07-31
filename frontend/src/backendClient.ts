@@ -9,7 +9,7 @@ export interface ConnectPayload {
   server?: string;
   port?: number;
   exitCountry?: string;
-  options?: { key?: string; bind?: string; bin?: string };
+  options?: { key?: string; bind?: string; bin?: string; integration?: 'direct'|'pac'|'tun' };
 }
 
 export async function bpConnect(payload: ConnectPayload) {

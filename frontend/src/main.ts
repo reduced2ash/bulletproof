@@ -161,6 +161,7 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let tray: Tray | null = null;
 let mainWindow: BrowserWindow | null = null;
+let isQuitting = false;
 const isDev = !app.isPackaged;
 
 function cleanup() {
@@ -302,11 +303,20 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow({
-    width: 420,
-    height: 720,
+    width: 680,
+    height: 620,
+    useContentSize: true,
     resizable: false,
-    backgroundColor: '#0b0b0c',
-    icon: iconPath,
+    maximizable: false,
+    fullscreenable: false,
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'hidden',
+    titleBarOverlay: process.platform === 'darwin' ? false : {
+      color: '#e9ecef',
+      symbolColor: '#343941',
+      height: 44,
+    },
+    trafficLightPosition: process.platform === 'darwin' ? { x: 12, y: 13 } : undefined,
+    backgroundColor: '#eff1f3',
     webPreferences: {
       preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
       nodeIntegration: false,
@@ -329,14 +339,14 @@ function createWindow() {
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
   mainWindow.on('close', (event) => {
-    if (app.quitting) {
+    if (isQuitting) {
       mainWindow = null;
       return;
     }
     // In development, closing the window should fully quit to avoid lingering processes
     if (isDev) {
       event.preventDefault();
-      app.quitting = true;
+      isQuitting = true;
       app.quit();
       return;
     }
@@ -369,6 +379,7 @@ function createTray() {
     console.error('Failed to create Tray:', e);
     tray = null;
   }
+  if (!tray) return;
 
   const contextMenu = Menu.buildFromTemplate([
     {
@@ -391,7 +402,7 @@ function createTray() {
     {
       label: 'Quit',
       click: () => {
-        app.quitting = true;
+        isQuitting = true;
         app.quit();
       },
     },
@@ -412,7 +423,7 @@ async function captureScreenshots(win: BrowserWindow) {
   const outDir = path.join(process.cwd(), '..', 'docs');
   try { fs.mkdirSync(outDir, { recursive: true }); } catch {}
   for (const p of pages) {
-    const url = `${MAIN_WINDOW_WEBPACK_ENTRY}?demo=1&page=${encodeURIComponent(p)}`;
+    const url = `${MAIN_WINDOW_WEBPACK_ENTRY}?demo=1&page=${encodeURIComponent(p)}&capture=1`;
     await win.loadURL(url);
     await new Promise(r => setTimeout(r, 600));
     const img = await win.webContents.capturePage();
@@ -440,7 +451,7 @@ app.on('ready', async () => {
     } catch (e) {
       console.error('screenshot capture failed:', e);
     }
-    app.quitting = true as any;
+    isQuitting = true;
     app.quit();
     return;
   }
@@ -464,6 +475,6 @@ app.on('before-quit', () => { cleanup(); });
 app.on('will-quit', () => { cleanup(); });
 
 // When running via a dev server, ensure we also clean up on signals
-process.on('SIGINT', () => { app.quitting = true; cleanup(); app.quit(); });
-process.on('SIGTERM', () => { app.quitting = true; cleanup(); app.quit(); });
+process.on('SIGINT', () => { isQuitting = true; cleanup(); app.quit(); });
+process.on('SIGTERM', () => { isQuitting = true; cleanup(); app.quit(); });
 process.on('exit', () => { cleanup(); });
